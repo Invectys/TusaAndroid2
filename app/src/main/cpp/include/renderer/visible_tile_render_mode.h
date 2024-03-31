@@ -1,0 +1,16 @@
+//
+// Created by Artem on 30.03.2024.
+//
+
+#ifndef TUSA_ANDROID_VISIBLE_TILE_RENDER_MODE_H
+#define TUSA_ANDROID_VISIBLE_TILE_RENDER_MODE_H
+
+
+enum class VisibleTileRenderMode {
+    TILE,
+    TILE_COORDINATES,
+    LEARN_VBO
+};
+
+
+#endif //TUSA_ANDROID_VISIBLE_TILE_RENDER_MODE_H
