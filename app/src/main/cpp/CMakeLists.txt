@@ -36,6 +36,7 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
         renderer/renderer.cpp
         renderer/map_draw_call.cpp
         renderer/render_tile_geometry.cpp
+        renderer/render_tile_coordinates.cpp
 
         util/frustrums.cpp
         util/matrices.cpp

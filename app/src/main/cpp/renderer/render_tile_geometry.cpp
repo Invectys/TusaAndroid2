@@ -29,9 +29,9 @@ void RenderTileGeometry::render(Matrix4 pvm, Matrix4 modelMatrix, Tile *tile) {
         const GLfloat color[] = { red, green, blue, alpha};
         glUniform4fv(plainShader->getColorLocation(), 1, color);
 
-        Geometry<int, unsigned int>& linesGeometry = tile->resultLines[geometryHeapIndex];
+        Geometry<float, unsigned int>& linesGeometry = tile->resultLines[geometryHeapIndex];
         if(!linesGeometry.isEmpty()) {
-            glVertexAttribPointer(plainShader->getPosLocation(), 2, GL_INT,
+            glVertexAttribPointer(plainShader->getPosLocation(), 2, GL_FLOAT,
             GL_FALSE, 0, linesGeometry.points
             );
             glEnableVertexAttribArray(plainShader->getPosLocation());
@@ -39,10 +39,9 @@ void RenderTileGeometry::render(Matrix4 pvm, Matrix4 modelMatrix, Tile *tile) {
         }
 
 
-
-        Geometry<int, unsigned int>& polygonsGeometry = tile->resultPolygons[geometryHeapIndex];
+        Geometry<float, unsigned int>& polygonsGeometry = tile->resultPolygons[geometryHeapIndex];
         if(!polygonsGeometry.isEmpty()) {
-            glVertexAttribPointer(plainShader->getPosLocation(), 2, GL_INT,
+            glVertexAttribPointer(plainShader->getPosLocation(), 2, GL_FLOAT,
             GL_FALSE, 0, polygonsGeometry.points
             );
             glEnableVertexAttribArray(plainShader->getPosLocation());

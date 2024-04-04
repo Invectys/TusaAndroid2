@@ -10,6 +10,16 @@
 
 class Symbol {
 public:
+    Symbol();
+    Symbol(
+        unsigned int textureId,
+        unsigned int width,
+        unsigned int rows,
+        FT_Int bitmapLeft,
+        FT_Int bitmapTop,
+        FT_Pos advance
+    );
+
     unsigned int textureId;
     unsigned int width;
     unsigned int rows;

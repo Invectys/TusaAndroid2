@@ -15,10 +15,10 @@ public:
     GLint getPosLocation() const {return a_pos;}
     GLint getColorLocation() const {return u_color;}
     GLint getTextureLocation() const {return u_text;}
-    GLint getTextureCoordLocation() const {return a_textCoords;}
+    GLint getTextureCord() const {return a_textureCord;}
 
 private:
-    GLint a_textCoords;
+    GLint a_textureCord;
     GLint a_pos;
     GLint u_color;
     GLint u_text;

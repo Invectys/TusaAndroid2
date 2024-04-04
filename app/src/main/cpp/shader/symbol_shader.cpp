@@ -14,7 +14,7 @@ SymbolShader::SymbolShader(AAssetManager *assetManager,
         return;
     }
     a_pos = glGetAttribLocation(program, "vertexPosition");
-    a_textCoords = glGetAttribLocation(program, "vertexTextureCord");
+    a_textureCord = glGetAttribLocation(program, "a_textureCord");
     u_matrix = glGetUniformLocation(program, "u_matrix");
     u_color = glGetUniformLocation(program, "u_color");
     u_text = glGetUniformLocation(program, "u_text");
