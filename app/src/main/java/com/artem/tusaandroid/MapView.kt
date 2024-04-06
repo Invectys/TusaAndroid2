@@ -14,19 +14,25 @@ import android.view.ScaleGestureDetector.SimpleOnScaleGestureListener
 
 
 class MapView : GLSurfaceView {
-    private val matrix = Matrix()
     private var scaleGestureDetector: ScaleGestureDetector? = null
     private var gestureDetector: GestureDetector? = null
-    private var scaleFactor = 1.0f
+
+    // Зум при запуске от 0 до 19
+    private val onAppStartMapZoom = 0
+
+    private val scaleShift = 1.0f
+    private val maxScale = 19f + scaleShift
+    private var scaleFactor = onAppStartMapZoom + scaleShift
     private var lastFocusX = 0f
     private var lastFocusY = 0f
     private val translate = PointF(0f, 0f)
-    private val lastTranslate = PointF(0f, 0f)
 
     constructor(context: Context) : super(context) {}
     constructor(context: Context, attributes: AttributeSet) : super(context, attributes) {}
 
     init {
+        // Чтобы при старте синхронизировать C++ и Java состояния карты
+        NativeLibrary.noOpenGlContextInit(resources.assets, scaleFactor)
 
         setEGLContextClientVersion(2)
         setRenderer(Renderer(resources.assets))
@@ -45,7 +51,7 @@ class MapView : GLSurfaceView {
     private inner class ScaleListener : SimpleOnScaleGestureListener() {
         override fun onScale(detector: ScaleGestureDetector): Boolean {
             scaleFactor *= detector.scaleFactor
-            scaleFactor = Math.max(1.0f, Math.min(scaleFactor, 20.0f))
+            scaleFactor = scaleShift.coerceAtLeast(scaleFactor.coerceAtMost(maxScale))
             NativeLibrary.scale(scaleFactor)
             return true
         }

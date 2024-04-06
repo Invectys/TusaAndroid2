@@ -246,9 +246,10 @@ Java_com_artem_tusaandroid_NativeLibrary_surfaceCreated(JNIEnv *env, jclass claz
 extern "C"
 JNIEXPORT void JNICALL
 Java_com_artem_tusaandroid_NativeLibrary_noOpenGlContextInit(JNIEnv *env, jclass clazz,
-                                                             jobject assetManager) {
+                                                             jobject assetManager,
+                                                             jfloat scale_factor) {
     AAssetManager* assetManagerFromJava = AAssetManager_fromJava(env, assetManager);
-    map.noOpenGlContextInit(assetManagerFromJava);
+    map.noOpenGlContextInit(assetManagerFromJava, scale_factor);
 }
 extern "C"
 JNIEXPORT void JNICALL

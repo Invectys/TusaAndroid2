@@ -17,21 +17,21 @@ void RenderTileGeometry::render(Matrix4 pvm, Matrix4 modelMatrix, Tile *tile) {
     // geometryHeap - это куча с геометрией, которую можно отрисовать в тайле единичным вызовом draw метода
     for(short geometryHeapIndex = 0; geometryHeapIndex < Style::maxGeometryHeaps; ++geometryHeapIndex) {
         Matrix4 modelMatrixWithZ = modelMatrix;
-        modelMatrixWithZ.translate(0, 0, Style::maxGeometryHeaps - geometryHeapIndex);
+        modelMatrixWithZ.translate(0, 0, (Style::maxGeometryHeaps - geometryHeapIndex) * zCordDrawHeapsDiff);
         Matrix4 projectionViewMatrix = pvm * modelMatrixWithZ;
         glUniformMatrix4fv(plainShader->getMatrixLocation(), 1, GL_FALSE, projectionViewMatrix.get());
 
         CSSColorParser::Color colorOfStyle = tile->style.getColorOfGeometryHeap(geometryHeapIndex);
-        GLfloat red =   static_cast<GLfloat>(colorOfStyle.r) / 255;
+        GLfloat red   = static_cast<GLfloat>(colorOfStyle.r) / 255;
         GLfloat green = static_cast<GLfloat>(colorOfStyle.g) / 255;
-        GLfloat blue =  static_cast<GLfloat>(colorOfStyle.b) / 255;
+        GLfloat blue  = static_cast<GLfloat>(colorOfStyle.b) / 255;
         GLfloat alpha = static_cast<GLfloat>(colorOfStyle.a);
         const GLfloat color[] = { red, green, blue, alpha};
         glUniform4fv(plainShader->getColorLocation(), 1, color);
 
-        Geometry<float, unsigned int>& linesGeometry = tile->resultLines[geometryHeapIndex];
+        Geometry<int, unsigned int>& linesGeometry = tile->resultLines[geometryHeapIndex];
         if(!linesGeometry.isEmpty()) {
-            glVertexAttribPointer(plainShader->getPosLocation(), 2, GL_FLOAT,
+            glVertexAttribPointer(plainShader->getPosLocation(), 2, GL_INT,
             GL_FALSE, 0, linesGeometry.points
             );
             glEnableVertexAttribArray(plainShader->getPosLocation());
@@ -39,9 +39,9 @@ void RenderTileGeometry::render(Matrix4 pvm, Matrix4 modelMatrix, Tile *tile) {
         }
 
 
-        Geometry<float, unsigned int>& polygonsGeometry = tile->resultPolygons[geometryHeapIndex];
+        Geometry<int, unsigned int>& polygonsGeometry = tile->resultPolygons[geometryHeapIndex];
         if(!polygonsGeometry.isEmpty()) {
-            glVertexAttribPointer(plainShader->getPosLocation(), 2, GL_FLOAT,
+            glVertexAttribPointer(plainShader->getPosLocation(), 2, GL_INT,
             GL_FALSE, 0, polygonsGeometry.points
             );
             glEnableVertexAttribArray(plainShader->getPosLocation());

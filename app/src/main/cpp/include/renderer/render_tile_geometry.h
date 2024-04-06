@@ -14,8 +14,11 @@ class RenderTileGeometry {
 public:
     RenderTileGeometry(std::shared_ptr<ShadersBucket>);
     void render(Matrix4 pvm, Matrix4 modelMatrix, Tile *tile);
+
+    float zCordDrawHeapsDiff = 1;
 private:
     std::shared_ptr<ShadersBucket> shadersBucket;
+
 };
 
 

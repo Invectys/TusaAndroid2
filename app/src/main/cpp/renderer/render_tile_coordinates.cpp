@@ -4,7 +4,7 @@
 
 #include "renderer/render_tile_coordinates.h"
 
-void RenderTileCoordinates::render(Matrix4 pvmm, VisibleTile visibleTile, float extent) {
+void RenderTileCoordinates::render(Matrix4 pvmm, VisibleTile visibleTile, int extent) {
     int x = visibleTile.tile->getX();
     int y = visibleTile.tile->getY();
     int z = visibleTile.tile->getZ();
@@ -13,8 +13,8 @@ void RenderTileCoordinates::render(Matrix4 pvmm, VisibleTile visibleTile, float 
     auto yChar = std::to_string(y);
     auto zChar = std::to_string(z);
 
-    float frameWidth = 200;
-    float framePoints[] = {
+    int frameWidth = 200;
+    int framePoints[] = {
             0, 0,
             frameWidth, -frameWidth,
             extent, 0,
@@ -40,7 +40,7 @@ void RenderTileCoordinates::render(Matrix4 pvmm, VisibleTile visibleTile, float 
     glUseProgram(plainShader->program);
     glUniformMatrix4fv(plainShader->getMatrixLocation(), 1, GL_FALSE, pvmm.get());
 
-    glVertexAttribPointer(plainShader->getPosLocation(), 2, GL_FLOAT, GL_FALSE, 0, framePoints);
+    glVertexAttribPointer(plainShader->getPosLocation(), 2, GL_INT, GL_FALSE, 0, framePoints);
     glEnableVertexAttribArray(plainShader->getPosLocation());
 
     glUniform4f(plainShader->getColorLocation(), 0.0, 0.0, 0.0f, 1.0f);
