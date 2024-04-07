@@ -13,16 +13,17 @@ void RenderTileCoordinates::render(Matrix4 pvmm, VisibleTile visibleTile, int ex
     auto yChar = std::to_string(y);
     auto zChar = std::to_string(z);
 
-    int frameWidth = 200;
-    int framePoints[] = {
+    float fExtent = (float)extent;
+    float frameWidth = 200;
+    float framePoints[] = {
             0, 0,
             frameWidth, -frameWidth,
-            extent, 0,
+            fExtent, 0,
             extent - frameWidth, -frameWidth,
-            0, -extent,
+            0, -fExtent,
             frameWidth, -extent + frameWidth,
-            extent, -extent,
-            extent - frameWidth, -extent + frameWidth
+            fExtent, -fExtent,
+            fExtent - frameWidth, -fExtent + frameWidth
     };
 
     unsigned short frameIndices[] = {
@@ -40,7 +41,7 @@ void RenderTileCoordinates::render(Matrix4 pvmm, VisibleTile visibleTile, int ex
     glUseProgram(plainShader->program);
     glUniformMatrix4fv(plainShader->getMatrixLocation(), 1, GL_FALSE, pvmm.get());
 
-    glVertexAttribPointer(plainShader->getPosLocation(), 2, GL_INT, GL_FALSE, 0, framePoints);
+    glVertexAttribPointer(plainShader->getPosLocation(), 2, GL_FLOAT, GL_FALSE, 0, framePoints);
     glEnableVertexAttribArray(plainShader->getPosLocation());
 
     glUniform4f(plainShader->getColorLocation(), 0.0, 0.0, 0.0f, 1.0f);

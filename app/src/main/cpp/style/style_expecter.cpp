@@ -16,6 +16,7 @@ void StyleExpecter::registerLayer(std::vector<std::string> expectedLayerName,
     bool layerNameCondition = std::find(expectedLayerName.begin(), expectedLayerName.end(), layerName) != expectedLayerName.end();
     if(layerNameCondition && classCondition) {
         colors[currentIndex] = color;
+        lineWidth[currentIndex] = useLineWidth;
         selectedIndex = currentIndex;
         styleRegistered = true;
     }
@@ -23,13 +24,18 @@ void StyleExpecter::registerLayer(std::vector<std::string> expectedLayerName,
 
     isFallbackByClassName = false;
     expectedClassName = "";
+    useLineWidth = 0;
 }
 
 StyleExpecter::StyleExpecter(
         layer_map_type props,
         std::string layerName,
-        CSSColorParser::Color (&colors)[Style::maxGeometryHeaps]
-) : layerName(layerName), colors(colors) {
+        CSSColorParser::Color (&colors)[Style::maxGeometryHeaps],
+        float (&lineWidth)[Style::maxGeometryHeaps]
+) :
+    layerName(layerName),
+    colors(colors),
+    lineWidth(lineWidth) {
     for(auto prop : props) {
         if(prop.first == "class") {
             className = boost::get<std::string>(prop.second);

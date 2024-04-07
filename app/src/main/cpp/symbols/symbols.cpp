@@ -124,16 +124,16 @@ void Symbols::renderText(std::string text, float x, float y, Matrix4 translate, 
                 xPos + w, (yPos + h)
         };
 
-        unsigned int indices[6] = {
-                2, 3, 0,
-                0, 1, 2
-        };
-
         GLfloat textureCords[] = {
                 0.0f, 0.0f,
                 0.0f, 1.0f,
                 1.0f, 1.0f,
                 1.0f, 0.0f
+        };
+
+        unsigned int indices[6] = {
+                2, 3, 0,
+                0, 1, 2
         };
 
         glUniformMatrix4fv(symbolShader->getMatrixLocation(), 1, GL_FALSE, translate.get());

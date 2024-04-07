@@ -20,6 +20,8 @@ void RenderTileGeometry::render(Matrix4 pvm, Matrix4 modelMatrix, Tile *tile) {
         modelMatrixWithZ.translate(0, 0, (Style::maxGeometryHeaps - geometryHeapIndex) * zCordDrawHeapsDiff);
         Matrix4 projectionViewMatrix = pvm * modelMatrixWithZ;
         glUniformMatrix4fv(plainShader->getMatrixLocation(), 1, GL_FALSE, projectionViewMatrix.get());
+        float lineWidth = tile->style.getLineWidthOfHeap(geometryHeapIndex);
+        glLineWidth(lineWidth);
 
         CSSColorParser::Color colorOfStyle = tile->style.getColorOfGeometryHeap(geometryHeapIndex);
         GLfloat red   = static_cast<GLfloat>(colorOfStyle.r) / 255;
@@ -29,19 +31,18 @@ void RenderTileGeometry::render(Matrix4 pvm, Matrix4 modelMatrix, Tile *tile) {
         const GLfloat color[] = { red, green, blue, alpha};
         glUniform4fv(plainShader->getColorLocation(), 1, color);
 
-        Geometry<int, unsigned int>& linesGeometry = tile->resultLines[geometryHeapIndex];
+        Geometry<float, unsigned int>& linesGeometry = tile->resultLines[geometryHeapIndex];
         if(!linesGeometry.isEmpty()) {
-            glVertexAttribPointer(plainShader->getPosLocation(), 2, GL_INT,
+            glVertexAttribPointer(plainShader->getPosLocation(), 2, GL_FLOAT,
             GL_FALSE, 0, linesGeometry.points
             );
             glEnableVertexAttribArray(plainShader->getPosLocation());
             glDrawElements(GL_LINES, linesGeometry.indicesCount, GL_UNSIGNED_INT, linesGeometry.indices);
         }
 
-
-        Geometry<int, unsigned int>& polygonsGeometry = tile->resultPolygons[geometryHeapIndex];
+        Geometry<float, unsigned int>& polygonsGeometry = tile->resultPolygons[geometryHeapIndex];
         if(!polygonsGeometry.isEmpty()) {
-            glVertexAttribPointer(plainShader->getPosLocation(), 2, GL_INT,
+            glVertexAttribPointer(plainShader->getPosLocation(), 2, GL_FLOAT,
             GL_FALSE, 0, polygonsGeometry.points
             );
             glEnableVertexAttribArray(plainShader->getPosLocation());

@@ -11,17 +11,24 @@
 
 class StyleExpecter {
 public:
-    StyleExpecter(layer_map_type props, std::string layerName, CSSColorParser::Color (&colors)[Style::maxGeometryHeaps]);
+    StyleExpecter(
+            layer_map_type props,
+            std::string layerName,
+            CSSColorParser::Color (&colors)[Style::maxGeometryHeaps],
+            float (&lineWidth)[Style::maxGeometryHeaps]
+    );
 
     short currentIndex = 1;
     short selectedIndex = -1;
-    CSSColorParser::Color (&colors)[Style::maxGeometryHeaps];
-
     bool isFallbackByClassName = false;
     std::string expectedClassName = "";
+    float useLineWidth = 0;
 
     void registerLayer(std::vector<std::string> expectedLayerName, CSSColorParser::Color color);
+    std::string getClassName() { return className; }
 private:
+    CSSColorParser::Color (&colors)[Style::maxGeometryHeaps];
+    float (&lineWidth)[Style::maxGeometryHeaps];
     bool styleRegistered = false;
     std::string layerName;
     std::string className;
