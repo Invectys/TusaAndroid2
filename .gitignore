@@ -13,7 +13,5 @@
 /vendor
 .externalNativeBuild
 mvt-fixtures
-*.mvt
-*.js
 .cxx
 local.properties
