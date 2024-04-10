@@ -26,3 +26,9 @@ TilesStorage::TilesStorage(Cache* cache)
 TilesStorage::~TilesStorage() {
     delete request;
 }
+
+bool TilesStorage::existInMemory(int zoom, int x, int y) {
+    std::string key = Tile::makeKey(zoom, x, y);
+    auto it = cacheTiles.find(key);
+    return it != cacheTiles.end();
+}

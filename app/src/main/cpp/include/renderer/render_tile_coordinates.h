@@ -9,13 +9,13 @@
 #include "util/matrices.h"
 #include "shader/shaders_bucket.h"
 #include "symbols/symbols.h"
-#include "map/visible_tile.h"
+#include "map/tile_for_renderer.h"
 
 class RenderTileCoordinates {
 public:
     RenderTileCoordinates(std::shared_ptr<ShadersBucket> shadersBucket, std::shared_ptr<Symbols> symbols);
 
-    void render(Matrix4 pvmm, VisibleTile visibleTile, int extent);
+    void render(Matrix4 pvmm, TileForRenderer visibleTile, int extent);
 
 private:
     std::shared_ptr<ShadersBucket> shadersBucket;

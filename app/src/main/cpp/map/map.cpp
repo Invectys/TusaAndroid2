@@ -19,6 +19,8 @@ void Map::onSurfaceCreated(AAssetManager *assetManager) {
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LESS);
 
+    glEnable(GL_STENCIL_TEST);
+
 
 //    AAsset *asset = AAssetManager_open(assetManager, "images/helmet-32.png", AASSET_MODE_BUFFER);
 //    off_t bufferLength = AAsset_getLength(asset);

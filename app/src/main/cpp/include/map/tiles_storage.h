@@ -13,6 +13,7 @@ class TilesStorage {
 public:
     TilesStorage(Cache* cache);
     Tile* getTile(int zoom, int x, int y);
+    bool existInMemory(int zoom, int x, int y);
 
     ~TilesStorage();
 private:

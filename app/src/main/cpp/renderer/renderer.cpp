@@ -13,14 +13,8 @@
 #include <iostream>
 #include <thread>
 
-bool DEBUG_TILE = false;
-short DEBUG_TILE_X = 0;
-short DEBUG_TILE_Y = 0;
-short DEBUG_TILE_ZOOM = 0;
-
-//short DEBUG_TILE_X = 0;
-//short DEBUG_TILE_Y = 0;
-//short DEBUG_TILE_ZOOM = 0;
+bool DEBUG_TILE = true;
+bool UPDATE_ON_DRAG = false;
 
 Renderer::Renderer(
         std::shared_ptr<ShadersBucket> shadersBucket,
@@ -35,16 +29,17 @@ Renderer::Renderer(
 
 void Renderer::renderFrame() {
     auto start = std::chrono::high_resolution_clock::now();
-
+    glStencilMask(0xFF);
     glClearColor((float)242 / 255, (float)248 / 255, (float)230 / 255, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+
 
     Matrix4 viewMatrix = Matrix4();
     viewMatrix.translate(camera[0], camera[1], camera[2]);
     Matrix4 pvm = projectionMatrix * viewMatrix;
 
-    for(int i = 0; i < 9; ++i) {
-        VisibleTile visibleTile = visibleTiles[i];
+    for(int i = 0; i < rendererTilesSize; ++i) {
+        TileForRenderer visibleTile = tilesForRenderer[i];
         if(visibleTile.isEmpty())
             continue;
 
@@ -75,40 +70,49 @@ void Renderer::onSurfaceChanged(int w, int h) {
     updateFrustum();
 }
 
-void Renderer::updateVisibleTiles() {
+void Renderer::updateVisibleTiles(bool render) {
     if(DEBUG_TILE) {
-        showTile(DEBUG_TILE_ZOOM, 0, 0, DEBUG_TILE_X, DEBUG_TILE_Y, 0);
+        currentVisibleTiles = {
+                TileCords {0, 0, 0, 0, 1},
+                TileCords {0, 1, 0, 1, 1},
+                TileCords {0, 0, 0, 0, 0} ,
+               //TileCords {1, 0, 1, 0, 1} ,
+
+
+               //TileCords {1, 1, 1, 1, 1} ,
+        };
+        loadAndRenderCurrentVisibleTiles();
         return;
     }
 
-    // top-left
-    std::thread([this]() {
-        showTile(0, 0, 0);
-    }).detach();
+    std::vector<TileCords> newVisibleTiles = {};
+    auto topCords = evaluateTileCords(0, 0);
+    auto bottomCords = evaluateTileCords(0, 1);
+    newVisibleTiles.push_back(topCords);
+    newVisibleTiles.push_back(bottomCords);
+//    std::thread([this]() {
+//    }).detach();
 
-    // top-right
-    std::thread([this]() {
-        showTile(1, 0, 1);
-    }).detach();
+    RenderTilesEnum renderTilesEnum = evaluateRenderTilesCameraXType();
+    if(renderTilesEnum == RenderTilesEnum::SHOW_RIGHT) {
+        LOGI("Show tiles direction: SHOW_RIGHT");
+        auto topRightCords = evaluateTileCords(1, 0);
+        auto bottomRightCords = evaluateTileCords(1, 1);
 
-    // bottom-left
-    std::thread([this]() {
-        showTile(0, -1, 1);
-    }).detach();
+        newVisibleTiles.push_back(topRightCords);
+        newVisibleTiles.push_back(bottomRightCords);
+    } else if(renderTilesEnum == RenderTilesEnum::SHOW_LEFT) {
+        LOGI("Show tiles direction: SHOW_LEFT");
+        auto topLeftCords = evaluateTileCords(-1, 0);
+        auto bottomLeftCords = evaluateTileCords(-1, 1);
 
-    // bottom-right
-    std::thread([this]() {
-        showTile(1, -1, 1);
-    }).detach();
+        newVisibleTiles.push_back(topLeftCords);
+        newVisibleTiles.push_back(bottomLeftCords);
+    }
 
-
-//    std::thread *loadBordersTilesThread = new std::thread([&]() {
-//        showTile(-1, 1, 5);
-//        showTile(1, 1, 6);
-//        showTile(1, -1, 7);
-//        showTile(-1, -1, 8);
-//    });
-    //tileThreads.push_back(loadBordersTilesThread);
+    currentVisibleTiles = std::move(newVisibleTiles);
+    if(render)
+        loadAndRenderCurrentVisibleTiles();
 }
 
 int Renderer::normalizeCoordinate(int coordinate) {
@@ -134,6 +138,25 @@ void Renderer::drag(float dx, float dy) {
     float scaleForDrag = evaluateFloatScaleFactorFormula();
     camera[0] -= dx * dragFingerMapSpeed * scaleForDrag;
     camera[1] += dy * dragFingerMapSpeed * scaleForDrag;
+    if (!UPDATE_ON_DRAG)
+        return;
+
+    auto rootTileXEv = evaluateRootTileX();
+    auto rootTileYEv = evaluateRooTileY();
+
+    bool needUpdateVisibleTiles = false;
+    if(updateSavedLastDragXTileType()) {
+        needUpdateVisibleTiles = true;
+    }
+
+    if(rootTileXEv != *rootTileX || rootTileYEv != *rootTileY) {
+        updateRootTile();
+        needUpdateVisibleTiles = true;
+    }
+
+    if(needUpdateVisibleTiles) {
+        updateVisibleTiles();
+    }
 }
 
 void Renderer::scale(float factor) {
@@ -144,7 +167,8 @@ void Renderer::scale(float factor) {
     if(_savedLastScaleStateMapZ != currentMapZTile()) {
         renderTileGeometry.scaleZCordDrawHeapsDiff(evaluateScaleFactorFormula());
         updateFrustum();
-        updateCenterXYTileShowing();
+        updateRootTile();
+        updateSavedLastDragXTileType();
         updateVisibleTiles();
         _savedLastScaleStateMapZ = currentMapZTile();
     }
@@ -158,22 +182,74 @@ void Renderer::doubleTap() {
     }
 }
 
-void Renderer::showTile(short z, int shiftX, int shiftY, int x, int y, short index) {
-    Tile* tile = tilesStorage.getTile(z, x, y);
-    visibleTiles[index] = VisibleTile(tile, shiftX, shiftY, evaluateScaleFactorFormulaForZ(z));
+void Renderer::loadAndRenderCurrentVisibleTiles() {
+    for(TileCords& vcord : currentVisibleTiles) {
+        loadAndRender(vcord);
+    }
 }
 
-void Renderer::showTile(int dX, int dY, short index) {
-    int tileX = *topLeftTileXTilesView + dX;
-    int tileX_n = normalizeCoordinate(tileX);
+void Renderer::loadAndRender(TileCords renderTileCords) {
+    short currentTileZ = currentMapZTile();
+    float mapScaleFactorForCurrentVisibleTilesZ = evaluateScaleFactorFormulaForZ(renderTileCords.tileZ);
+    auto tileGeometry = tilesStorage.getTile(renderTileCords.tileZ, renderTileCords.tileX, renderTileCords.tileY);
+    auto needToInsertTile = TileForRenderer(
+                        tileGeometry, renderTileCords.tileXShift, renderTileCords.tileYShift,
+                            renderTileCords.tileX, renderTileCords.tileY, renderTileCords.tileZ,
+                            mapScaleFactorForCurrentVisibleTilesZ
+                        );
 
-    int tileY = *topLeftTileYTilesView + dY;
-    int tileY_n = normalizeCoordinate(tileY);
+    // Если больше нуля то тайл (needToInsertTile) выше в 3д пространстве
+    // Если меньше нуля то тайл ниже
+    needToInsertTile.zDeltaFlag = currentTileZ - needToInsertTile.tileZ;
 
-    short mapZTile = currentMapZTile();
-    LOGI("Use mapZTileCordCurrent (showTile) %d", mapZTile);
-    LOGI("tile dx dy %hd %hd, x y %hd %hd, mapZTileCordCurrent %hd", dX, dY, tileX_n, tileY_n, mapZTile);
-    showTile(mapZTile, tileX, tileY, tileX_n, tileY_n, index);
+    bool inserted = false;
+
+
+    for(short i = 0; i < rendererTilesSize; ++i) {
+        auto& tileForR = tilesForRenderer[i];
+        if(tileForR.isEmpty() && !inserted) {
+            tileForR = needToInsertTile;
+            inserted = true;
+        }
+        tileForR.zDeltaFlag = currentTileZ - tileForR.tileZ;
+
+        if(needToInsertTile.zDeltaFlag < tileForR.zDeltaFlag && !inserted) {
+            for(short i1 = rendererTilesSize - 2; i1 >= i; --i1) {
+                tilesForRenderer[i1 + 1] = tilesForRenderer[i1];
+            }
+            tilesForRenderer[i] = needToInsertTile;
+            inserted = true;
+        }
+
+        if(needToInsertTile.zDeltaFlag > tileForR.zDeltaFlag && tileForR.zDeltaFlag != 0) {
+            if(needToInsertTile.cover(tileForR)) {
+                tileForR.clear();
+                if(!inserted) {
+                    tileForR = needToInsertTile;
+                    inserted = true;
+                }
+            }
+        }
+    }
+}
+
+TileCords Renderer::evaluateTileCords(int dX, int dY) {
+    int tileXShift = *rootTileX + dX;
+    int tileX_n = normalizeCoordinate(tileXShift);
+
+    int tileYShift = *rootTileY + dY;
+    int tileY_n = normalizeCoordinate(tileYShift);
+
+    //LOGI("Use mapZTileCordCurrent (evaluateTileCords) %d", mapZTile);
+    //LOGI("tile dx dy %hd %hd, x y %hd %hd, mapZTileCordCurrent %hd", dX, dY, tileX_n, tileY_n, mapZTile);
+    //renderTiles(mapZTile, tileX, tileY, tileX_n, tileY_n);
+    return TileCords {
+              tileXShift,
+              tileYShift,
+        tileX_n,
+        tileY_n,
+        currentMapZTile()
+    };
 }
 
 void Renderer::loadAssets(AAssetManager *assetManager) {
@@ -194,3 +270,5 @@ void Renderer::updateFrustum() {
                                   currentCameraZBorder + 1
                                   );
 }
+
+

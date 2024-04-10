@@ -4,7 +4,7 @@
 
 #include "renderer/render_tile_coordinates.h"
 
-void RenderTileCoordinates::render(Matrix4 pvmm, VisibleTile visibleTile, int extent) {
+void RenderTileCoordinates::render(Matrix4 pvmm, TileForRenderer visibleTile, int extent) {
     int x = visibleTile.tile->getX();
     int y = visibleTile.tile->getY();
     int z = visibleTile.tile->getZ();

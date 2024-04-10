@@ -9,11 +9,13 @@
 #include "map/tile.h"
 #include "map/tiles_storage.h"
 #include "style/style.h"
-#include "map/visible_tile.h"
+#include "map/tile_for_renderer.h"
 #include "render_tile_geometry.h"
 #include "visible_tile_render_mode.h"
 #include "symbols/symbols.h"
 #include "render_tile_coordinates.h"
+#include "render_tiles_enum.h"
+#include "tile_cords.h"
 #include <vector>
 
 
@@ -21,45 +23,55 @@ class Renderer {
 public:
     Renderer(std::shared_ptr<ShadersBucket> shadersBucket, Cache* cache);
     ~Renderer() {
-        delete topLeftTileXTilesView;
-        delete topLeftTileYTilesView;
+        delete rootTileX;
+        delete rootTileY;
     }
 
     void onSurfaceChanged(int w, int h);
     void renderFrame();
-    void updateVisibleTiles();
+    void updateVisibleTiles(bool render = true);
     void drag(float dx, float dy);
     void scale(float scaleFactor);
     void doubleTap();
     int normalizeCoordinate(int coordinate);
 
+    float proportionXCamCordByCurrentExtent() {
+        auto tileRemain = fmod(-camera[0], currentExtent());
+        return tileRemain / currentExtent();
+    }
+
     // Устанавливает камеру в центр тайла
     void updateCordsByTiles(int xTile, int yTile) {
-        *topLeftTileXTilesView = xTile;
-        *topLeftTileYTilesView = yTile;
+        *rootTileX = xTile;
+        *rootTileY = yTile;
         auto _currentExtent = currentExtent();
-        cameraXStart = -(float) _currentExtent / 2.0 - *topLeftTileXTilesView * _currentExtent;
-        cameraYStart =  (float) _currentExtent / 2.0 + *topLeftTileYTilesView * _currentExtent;
+        auto cameraXStart = - *rootTileX * _currentExtent - _currentExtent / 2;
+        auto cameraYStart = *rootTileY * _currentExtent + _currentExtent;
         camera[0] = cameraXStart;
         camera[1] = cameraYStart;
     }
 
-    void updateTopLeftXYTileShowed() {
+    int evaluateRootTileX() {
+        return -1 * camera[0] / currentExtent();
+    }
+
+    int evaluateRooTileY() {
         auto _currentExtent = currentExtent();
-        float cameraXCord = camera[0];
-        float cameraYCord = camera[1];
-        int centerX = -1 * cameraXCord / _currentExtent;
-        int centerY = cameraYCord / _currentExtent;
-        *topLeftTileXTilesView = centerX;
-        *topLeftTileYTilesView = centerY;
+        return (camera[1] - _currentExtent / 2) / _currentExtent;
+    }
+
+    void updateRootTile() {
+        *rootTileX = evaluateRootTileX();
+        *rootTileY = evaluateRooTileY();
     }
 
     void setupNoOpenGLMapState(float scaleFactor, AAssetManager *assetManager) {
-        topLeftTileXTilesView = new int();
-        topLeftTileYTilesView = new int();
+        showTilesXCordProportion = 0.3;
+        rootTileX = new int();
+        rootTileY = new int();
         loadAssets(assetManager);
-        cameraRootZ = -5000;
-        fovy = 80;
+        cameraRootZ = -3500;
+        fovy = 65;
         updateMapZoomScaleFactor(scaleFactor);
         updateCordsByTiles(0, 0);
         updateMapCameraZPosition();
@@ -68,13 +80,24 @@ public:
         updateVisibleTiles();
     }
 
+    RenderTilesEnum evaluateRenderTilesCameraXType() {
+        auto xTileCamP = proportionXCamCordByCurrentExtent();
+        if(xTileCamP > 1 - showTilesXCordProportion) {
+            return RenderTilesEnum::SHOW_RIGHT;
+        } else if(xTileCamP < showTilesXCordProportion) {
+           return RenderTilesEnum::SHOW_LEFT;
+        }
+        return RenderTilesEnum::ONLY_MIDDLE;
+    }
+
     std::shared_ptr<Symbols> getSymbols() {return symbols;}
 
     VisibleTileRenderMode visibleTileRenderMode = VisibleTileRenderMode::TILE_COORDINATES;
 
     void loadAssets(AAssetManager *assetManager);
-    void showTile(int dX, int dY, short index);
-    void showTile(short zoom, int shiftX, int shiftY, int x, int y, short index);
+    TileCords evaluateTileCords(int dX, int dY);
+    void loadAndRenderCurrentVisibleTiles();
+    void loadAndRender(TileCords tileCords);
 private:
     short mapZTileCordMax = 19;
     float mapZTileScalingRoot = 12;
@@ -82,8 +105,17 @@ private:
 
     float _savedLastScaleStateMapZ;
 
+    bool updateSavedLastDragXTileType() {
+        RenderTilesEnum renderTilesEnumX = evaluateRenderTilesCameraXType();
+        if(_savedDragRenderXTile != renderTilesEnumX) {
+            _savedDragRenderXTile = renderTilesEnumX;
+            return true;
+        }
+        return false;
+    }
+
     void updateMapZoomScaleFactor(float scaleFactor) {
-        scaleFactorZoom = scaleFactor - 1.0f;
+        scaleFactorZoom = scaleFactor;
     }
 
     void updateMapCameraZPosition() {
@@ -120,26 +152,31 @@ private:
         return evaluateExtentForScaleFactor(evaluateScaleFactorFormula());
     }
 
+
     std::shared_ptr<ShadersBucket> shadersBucket;
     RenderTileGeometry renderTileGeometry;
     std::shared_ptr<RenderTileCoordinates> renderTileCoordinates;
     std::shared_ptr<Symbols> symbols;
-    int* topLeftTileXTilesView, *topLeftTileYTilesView;
+    int* rootTileX, *rootTileY;
 
     Matrix4 projectionMatrix;
 
     const uint32_t extent = 4096;
     float dragFingerMapSpeed = 2.0f;
 
+    RenderTilesEnum _savedDragRenderXTile = RenderTilesEnum::ONLY_MIDDLE;
+
+    std::vector<TileCords> currentVisibleTiles = {};
+
+    float showTilesXCordProportion;
     float fovy;
-    float cameraXStart;
-    float cameraYStart;
     float cameraRootZ;
     float camera[3] = {};
     int screenW, screenH;
     Cache* cache;
     TilesStorage tilesStorage = TilesStorage(cache);
-    VisibleTile visibleTiles[9] = {};
+    static const short rendererTilesSize = 8;
+    TileForRenderer tilesForRenderer[rendererTilesSize] = {};
 };
 
 

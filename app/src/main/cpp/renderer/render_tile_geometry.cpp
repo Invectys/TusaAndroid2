@@ -14,6 +14,9 @@ void RenderTileGeometry::render(Matrix4 pvm, Matrix4 modelMatrix, Tile *tile) {
     std::shared_ptr<PlainShader> plainShader = shadersBucket->plainShader;
     glUseProgram(plainShader->program);
 
+    glStencilFunc(GL_GREATER, 1, 0xFF);
+    glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
+
     // geometryHeap - это куча с геометрией, которую можно отрисовать в тайле единичным вызовом draw метода
     for(short geometryHeapIndex = 0; geometryHeapIndex < Style::maxGeometryHeaps; ++geometryHeapIndex) {
         Matrix4 modelMatrixWithZ = modelMatrix;
@@ -31,15 +34,6 @@ void RenderTileGeometry::render(Matrix4 pvm, Matrix4 modelMatrix, Tile *tile) {
         const GLfloat color[] = { red, green, blue, alpha};
         glUniform4fv(plainShader->getColorLocation(), 1, color);
 
-        Geometry<float, unsigned int>& linesGeometry = tile->resultLines[geometryHeapIndex];
-        if(!linesGeometry.isEmpty()) {
-            glVertexAttribPointer(plainShader->getPosLocation(), 2, GL_FLOAT,
-            GL_FALSE, 0, linesGeometry.points
-            );
-            glEnableVertexAttribArray(plainShader->getPosLocation());
-            glDrawElements(GL_LINES, linesGeometry.indicesCount, GL_UNSIGNED_INT, linesGeometry.indices);
-        }
-
         Geometry<float, unsigned int>& polygonsGeometry = tile->resultPolygons[geometryHeapIndex];
         if(!polygonsGeometry.isEmpty()) {
             glVertexAttribPointer(plainShader->getPosLocation(), 2, GL_FLOAT,
@@ -47,6 +41,15 @@ void RenderTileGeometry::render(Matrix4 pvm, Matrix4 modelMatrix, Tile *tile) {
             );
             glEnableVertexAttribArray(plainShader->getPosLocation());
             glDrawElements(GL_TRIANGLES, polygonsGeometry.indicesCount, GL_UNSIGNED_INT, polygonsGeometry.indices);
+        }
+
+        Geometry<float, unsigned int>& linesGeometry = tile->resultLines[geometryHeapIndex];
+        if(!linesGeometry.isEmpty()) {
+            glVertexAttribPointer(plainShader->getPosLocation(), 2, GL_FLOAT,
+                                  GL_FALSE, 0, linesGeometry.points
+            );
+            glEnableVertexAttribArray(plainShader->getPosLocation());
+            glDrawElements(GL_LINES, linesGeometry.indicesCount, GL_UNSIGNED_INT, linesGeometry.indices);
         }
     }
 }

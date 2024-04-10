@@ -27,14 +27,19 @@ class MapView : GLSurfaceView {
     private var lastFocusY = 0f
     private val translate = PointF(0f, 0f)
 
+    fun getScaleForMap(): Float {
+        return scaleFactor - scaleShift
+    }
+
     constructor(context: Context) : super(context) {}
     constructor(context: Context, attributes: AttributeSet) : super(context, attributes) {}
 
     init {
         // Чтобы при старте синхронизировать C++ и Java состояния карты
-        NativeLibrary.noOpenGlContextInit(resources.assets, scaleFactor)
+        NativeLibrary.noOpenGlContextInit(resources.assets, getScaleForMap())
 
         setEGLContextClientVersion(2)
+        setEGLConfigChooser(8, 8, 8, 8, 16, 8)
         setRenderer(Renderer(resources.assets))
 
         scaleGestureDetector = ScaleGestureDetector(context, ScaleListener())
@@ -49,10 +54,15 @@ class MapView : GLSurfaceView {
     }
 
     private inner class ScaleListener : SimpleOnScaleGestureListener() {
+        var multiplierScaleFactor = 0.05f
         override fun onScale(detector: ScaleGestureDetector): Boolean {
-            scaleFactor *= detector.scaleFactor
+            val detectorScale = detector.scaleFactor
+            val realScale = (detectorScale - 1f) * 0.35f
+
+            scaleFactor *= (1 + realScale)
             scaleFactor = scaleShift.coerceAtLeast(scaleFactor.coerceAtMost(maxScale))
-            NativeLibrary.scale(scaleFactor)
+
+            NativeLibrary.scale(getScaleForMap())
             return true
         }
 

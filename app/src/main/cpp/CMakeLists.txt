@@ -37,6 +37,8 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
         renderer/map_draw_call.cpp
         renderer/render_tile_geometry.cpp
         renderer/render_tile_coordinates.cpp
+        renderer/render_tiles_enum.cpp
+        renderer/tile_cords.cpp
 
         util/frustrums.cpp
         util/matrices.cpp
@@ -47,7 +49,7 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
         map/map.cpp
         map/tile.cpp
         map/tiles_storage.cpp
-        map/visible_tile.cpp
+        map/tile_for_renderer.cpp
         map/linestring_handler.cpp
         map/polygon_handler.cpp
         map/visible_tile_render_mode.cpp
