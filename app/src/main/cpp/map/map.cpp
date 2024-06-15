@@ -11,37 +11,8 @@
 
 void Map::onSurfaceCreated(AAssetManager *assetManager) {
     shadersBucket->compileAllShaders(assetManager);
-    renderer.getSymbols()->createFontTextures();
 
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-    glEnable(GL_DEPTH_TEST);
-    glDepthFunc(GL_LESS);
-
-    glEnable(GL_STENCIL_TEST);
-
-
-//    AAsset *asset = AAssetManager_open(assetManager, "images/helmet-32.png", AASSET_MODE_BUFFER);
-//    off_t bufferLength = AAsset_getLength(asset);
-//    char* buffer = (char*)malloc(bufferLength);
-//    AAsset_read(asset, buffer, bufferLength);
-//    AAsset_close(asset);
-//
-//    int width, height, channels;
-//    stbi_uc* image = stbi_load_from_memory(reinterpret_cast<const stbi_uc*>(buffer), bufferLength, &width, &height, &channels, STBI_rgb_alpha);
-//
-//    unsigned int texture;
-//    glGenTextures(1, &texture);
-//    glBindTexture(GL_TEXTURE_2D, texture);
-//    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image);
-//
-//    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-//    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-//    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-//    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-//
-//    free(buffer);
+    renderer.onSurfaceCreated(assetManager);
 }
 
 void Map::onSurfaceChanged(int w, int h) {
@@ -55,7 +26,6 @@ void Map::render() {
 }
 
 void Map::noOpenGlContextInit(AAssetManager *assetManager, float scaleFactor) {
-    shadersBucket->loadShaders(assetManager);
     renderer.setupNoOpenGLMapState(scaleFactor, assetManager);
 }
 

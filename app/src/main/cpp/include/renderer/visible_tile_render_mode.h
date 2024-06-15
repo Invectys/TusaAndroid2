@@ -9,7 +9,8 @@
 enum class VisibleTileRenderMode {
     TILE,
     TILE_COORDINATES,
-    LEARN_VBO
+    LEARN_VBO,
+    SPHERE
 };
 
 

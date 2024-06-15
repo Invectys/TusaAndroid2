@@ -32,6 +32,7 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
         shader/symbol_shader.cpp
         shader/shaders_bucket.cpp
         shader/shader.cpp
+        shader/planet_shader.cpp
 
         renderer/renderer.cpp
         renderer/map_draw_call.cpp
@@ -46,6 +47,10 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
 
         network/request.cpp
 
+        gl/open_gl_interface.cpp
+        gl/cube_example.cpp
+        gl/triangle_example.cpp
+
         map/map.cpp
         map/tile.cpp
         map/tiles_storage.cpp
@@ -53,8 +58,10 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
         map/linestring_handler.cpp
         map/polygon_handler.cpp
         map/visible_tile_render_mode.cpp
+        map/mercator.cpp
 
         geometry/geometry.cpp
+        geometry/sphere.cpp
 
         cache/cache.cpp
 

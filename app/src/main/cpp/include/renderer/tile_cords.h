@@ -12,6 +12,7 @@ public:
     int tileX;
     int tileY;
     int tileZ;
+    bool wasNormalized = false;
 };
 
 

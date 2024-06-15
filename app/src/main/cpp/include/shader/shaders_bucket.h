@@ -10,23 +10,19 @@
 #include "plain_shader.h"
 #include "symbol_shader.h"
 #include "shaders_bucket.h"
+#include "planet_shader.h"
 #include <boost/shared_ptr.hpp>
 
 class ShadersBucket {
 public:
     ShadersBucket();
     ~ShadersBucket();
-    void loadShaders(AAssetManager* assetManager);
 
     void compileAllShaders(AAssetManager* assetManager);
 
     std::shared_ptr<PlainShader> plainShader;
     std::shared_ptr<SymbolShader> symbolShader;
-private:
-
-    std::map<std::string, std::pair<std::string, long>> shadersCode = {};
-    const char* loadShader(const char* filename, AAssetManager* assetManager, long& size);
-    std::shared_ptr<PlainShader> createPlainShader(AAssetManager* assetManager);
+    std::shared_ptr<PlanetShader> planetShader;
 };
 
 

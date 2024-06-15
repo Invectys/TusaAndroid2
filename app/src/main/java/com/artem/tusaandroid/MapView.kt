@@ -2,7 +2,6 @@ package com.artem.tusaandroid
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.graphics.Matrix
 import android.graphics.PointF
 import android.opengl.GLSurfaceView
 import android.util.AttributeSet
@@ -26,6 +25,7 @@ class MapView : GLSurfaceView {
     private var lastFocusX = 0f
     private var lastFocusY = 0f
     private val translate = PointF(0f, 0f)
+    private val scaleSpeed = 0.25f
 
     fun getScaleForMap(): Float {
         return scaleFactor - scaleShift
@@ -54,12 +54,11 @@ class MapView : GLSurfaceView {
     }
 
     private inner class ScaleListener : SimpleOnScaleGestureListener() {
-        var multiplierScaleFactor = 0.05f
         override fun onScale(detector: ScaleGestureDetector): Boolean {
             val detectorScale = detector.scaleFactor
-            val realScale = (detectorScale - 1f) * 0.35f
+            val realScale = (detectorScale - 1f)
 
-            scaleFactor *= (1 + realScale)
+            scaleFactor *= (1 + realScale * scaleSpeed)
             scaleFactor = scaleShift.coerceAtLeast(scaleFactor.coerceAtMost(maxScale))
 
             NativeLibrary.scale(getScaleForMap())

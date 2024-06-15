@@ -5,14 +5,6 @@
 #include "renderer/render_tile_coordinates.h"
 
 void RenderTileCoordinates::render(Matrix4 pvmm, TileForRenderer visibleTile, int extent) {
-    int x = visibleTile.tile->getX();
-    int y = visibleTile.tile->getY();
-    int z = visibleTile.tile->getZ();
-
-    auto xChar = std::to_string(x);
-    auto yChar = std::to_string(y);
-    auto zChar = std::to_string(z);
-
     float fExtent = (float)extent;
     float frameWidth = 200;
     float framePoints[] = {
@@ -46,6 +38,14 @@ void RenderTileCoordinates::render(Matrix4 pvmm, TileForRenderer visibleTile, in
 
     glUniform4f(plainShader->getColorLocation(), 0.0, 0.0, 0.0f, 1.0f);
     glDrawElements(GL_TRIANGLES, 24, GL_UNSIGNED_SHORT, frameIndices);
+
+    int x = visibleTile.tile->getX();
+    int y = visibleTile.tile->getY();
+    int z = visibleTile.tile->getZ();
+
+    auto xChar = std::to_string(x);
+    auto yChar = std::to_string(y);
+    auto zChar = std::to_string(z);
 
     symbols->renderText(xChar + ":" + yChar, extent / 2.0, -extent / 2, pvmm, 2);
 }

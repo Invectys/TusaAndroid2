@@ -15,6 +15,8 @@
 #include <array>
 #include <vector>
 #include <vector_tile.hpp>
+#include <chrono>
+#include <thread>
 
 
 bool DEBUG_TILE_PARSE = false;
@@ -49,6 +51,10 @@ std::string Tile::makeKey(int zoom, int x, int y) {
 }
 
 void Tile::parseMethod1(int zoom, int x, int y, vtzero::vector_tile *tile) {
+
+//    auto currentTime = std::chrono::system_clock::now();
+//    auto wakeupTime = currentTime + std::chrono::seconds(5);
+//    std::this_thread::sleep_until(wakeupTime);
 
     std::forward_list<FeatureGeometryBlock<Geometry<LineCoord, LineIndic>>> linesFeatureGeomBlockList[Style::maxGeometryHeaps];
     std::forward_list<std::pair<std::vector<std::vector<PolygonPoint>>, std::vector<PolygonIndic>>> polygonsFeatureGeomBlockList[Style::maxGeometryHeaps];
