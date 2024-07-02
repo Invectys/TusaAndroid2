@@ -15,7 +15,7 @@ class RenderTileCoordinates {
 public:
     RenderTileCoordinates(std::shared_ptr<ShadersBucket> shadersBucket, std::shared_ptr<Symbols> symbols);
 
-    void render(Matrix4 pvmm, TileForRenderer visibleTile, int extent);
+    void render(Matrix4 pvmm, TileForRenderer visibleTile, int extent, float frameWidth);
 
 private:
     std::shared_ptr<ShadersBucket> shadersBucket;

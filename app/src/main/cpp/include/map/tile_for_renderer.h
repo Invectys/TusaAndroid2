@@ -10,7 +10,8 @@
 
 class TileForRenderer {
 public:
-    TileForRenderer(Tile* tile, int shiftX, int shiftY, int tileX, int tileY, int tileZ, float mapScaleFactor);
+    TileForRenderer(Tile* tile, int shiftX, int shiftY, int tileX, int tileY, int tileZ, float mapScaleFactor,
+                    int rPosX, int rPosY, short xNorm, short yNorm);
     TileForRenderer();
 
     // Смещение в 3d пространстве относительно нуля по тайлам
@@ -21,6 +22,11 @@ public:
     int tileX;
     int tileY;
     int tileZ;
+    int rPosX;
+    int rPosY;
+
+    int xNorm;
+    int yNorm;
 
     short zDeltaFlag = 0;
 
@@ -47,6 +53,11 @@ public:
         bool xCovered = startX <= otherStartX && otherEndX <= endX;
         bool yCovered = startY <= otherStartY && otherEndY <= endY;
         return xCovered && yCovered;
+    }
+
+    std::string toString() {
+        return "(" + std::to_string(tileX) + ", " + std::to_string(tileY) + ", " + std::to_string(tileZ) + ")"
+        + " rPos(" + std::to_string(rPosX) + ", " + std::to_string(rPosY) + ")";
     }
 
     void clear() {

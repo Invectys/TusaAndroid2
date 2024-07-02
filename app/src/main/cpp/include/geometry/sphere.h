@@ -9,6 +9,7 @@
 #include <cmath>
 #include <vector>
 #include "map/mercator.h"
+#include "util/android_log.h"
 
 class Sphere {
 public:
@@ -21,7 +22,9 @@ public:
     }
 
     void generateSphereData3(int stackCount, int sectorCount, float radius,
-                             float centerLatitudeRad, float centerLongitudeRad, float fromCenterDeltaRad
+                             float centerLatitudeRad,
+                             float centerLongitudeRad,
+                             float fromCenterDeltaRad
     ) {
         // clear memory of prev arrays
         std::vector<float>().swap(sphere_vertices);
@@ -87,15 +90,8 @@ public:
                 sphere_vertices.push_back(y);
                 sphere_vertices.push_back(z);
 
-
-                float lowerStackRad = (float) DEG2RAD(-degLatitudeConstraint);
-                float highStackRad = (float) DEG2RAD(degLatitudeConstraint);
-                float stackRadClipped = std::max(lowerStackRad, std::min(stackAngle, highStackRad));
-                float stackCord = (std::logf(std::tanf(stackRadClipped) + 1.0f / std::cosf(stackRadClipped)));
-                float stackCord_n = (1.0f - stackCord / M_PI) / 2.0f;
-
                 float t = std::min(std::max(0.0f, 1.0f - (float) sectorIndex / (float) sectorCount), 1.0f);
-                float s = std::min(std::max(0.0f, 1.0f - stackCord_n), 1.0f);
+                float s = CommonUtils::latitudeRadToY(stackAngle);
                 texCords.push_back(t); // longitude x
                 texCords.push_back(s); // latitude y
 

@@ -9,6 +9,8 @@
 enum RenderTilesEnum {
     SHOW_LEFT,
     SHOW_RIGHT,
+    SHOW_TOP,
+    SHOW_BOTTOM,
     ONLY_MIDDLE
 };
 

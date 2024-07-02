@@ -12,16 +12,23 @@ PlanetShader::PlanetShader(AAssetManager *assetManager, const char *vertexShader
         return;
     }
 
-    u_color = glGetUniformLocation(program, "color");
     u_matrix = glGetUniformLocation(program, "u_matrix");
     a_pos = glGetAttribLocation(program, "a_vertexPosition");
-    a_tile_cords_0 = glGetAttribLocation(program, "a_tile_cords_0");
-    a_tile_cords_1 = glGetAttribLocation(program, "a_tile_cords_1");
-    a_tile_cords_2 = glGetAttribLocation(program, "a_tile_cords_2");
-    a_tile_cords_3 = glGetAttribLocation(program, "a_tile_cords_3");
     a_unit_square_cords = glGetAttribLocation(program, "a_unit_square_cords");
     u_tile_0 = glGetUniformLocation(program, "u_tile_0");
-    u_tile_1 = glGetUniformLocation(program, "u_tile_1");
-    u_tile_2 = glGetUniformLocation(program, "u_tile_2");
-    u_tile_3 = glGetUniformLocation(program, "u_tile_3");
+
+    u_topLeftX = glGetUniformLocation(program, "xTopLeft");
+    u_topLeftY = glGetUniformLocation(program, "yTopLeft");
+    u_bottomRightX = glGetUniformLocation(program, "xBottomRight");
+    u_bottomRightY = glGetUniformLocation(program, "yBottomRight");
+
+    u_zoom = glGetUniformLocation(program, "u_zoom");
+
+    u_shiftX = glGetUniformLocation(program, "u_shiftX");
+    u_shiftY = glGetUniformLocation(program, "u_shiftY");
+
+    u_startX = glGetUniformLocation(program, "u_startX");
+    u_endX = glGetUniformLocation(program, "u_endX");
+    u_startY = glGetUniformLocation(program, "u_startY");
+    u_endY = glGetUniformLocation(program, "u_endY");
 }

@@ -17,7 +17,7 @@ class MapView : GLSurfaceView {
     private var gestureDetector: GestureDetector? = null
 
     // Зум при запуске от 0 до 19
-    private val onAppStartMapZoom = 1
+    private val onAppStartMapZoom = 0
 
     private val scaleShift = 1.0f
     private val maxScale = 19f + scaleShift

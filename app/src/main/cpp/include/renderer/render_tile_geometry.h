@@ -18,7 +18,6 @@ public:
     void scaleZCordDrawHeapsDiff(float scale) {
         zCordDrawHeapsDiff = zCordDrawHeapsDiffRoot * scale;
     }
-    float getZCordDrawHeapDiff() { return zCordDrawHeapsDiff; }
 private:
     std::shared_ptr<ShadersBucket> shadersBucket;
     float zCordDrawHeapsDiff;

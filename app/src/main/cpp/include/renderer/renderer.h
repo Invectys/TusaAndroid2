@@ -30,6 +30,8 @@ public:
         delete rootTileY;
     }
 
+    bool RENDER_TILE_PALLET_TEST = false;
+
     void onSurfaceChanged(int w, int h);
     void onSurfaceCreated(AAssetManager *assetManager);
     void renderFrame();
@@ -40,8 +42,34 @@ public:
     int normalizeCoordinate(int coordinate);
 
     float proportionXCamCordByCurrentExtent() {
-        auto tileRemain = fmod(-camera[0], evaluateCurrentExtent());
-        return tileRemain / evaluateCurrentExtent();
+        float x = evaluateXTileNMultiplyX();
+        float proportion = CommonUtils::fract(x);
+        return proportion;
+    }
+
+    float proportionYCamCordByCurrentExtent() {
+        float y = evaluateYTileNMultiplyY();
+        float proportion = CommonUtils::fract(y);
+        return proportion;
+    }
+
+    float evaluateN() {
+        return pow(2, currentMapZTile());
+    }
+
+    float evaluateXTileNMultiplyX() {
+        int n = evaluateN();
+        auto x = CommonUtils::longitudeRadToX(getCurrentLonRad());
+        float xTile = x * n;
+        return xTile;
+    }
+
+    float evaluateYTileNMultiplyY() {
+        int n = evaluateN();
+        auto rad = getCurrentLatRad();
+        auto y = CommonUtils::latitudeRadToY(-rad);
+        float yTile = y * n;
+        return yTile;
     }
 
     float evaluateZeroZoomCameraDist() {
@@ -59,13 +87,29 @@ public:
         camera[1] = cameraYStart;
     }
 
+    // считает рут тайл за счет камеры, рут тайл используется для определения того что видит юзер
     int evaluateRootTileDiffX() {
-        return -1 * camera[0] / evaluateCurrentExtent();
+        short z = currentMapZTile();
+        if (z == 0 || z == 1) {
+            return 0;
+        }
+        int xTile = evaluateXTileNMultiplyX();
+        if(xTile == evaluateN())
+            xTile--;
+        LOGI("[ROOT] X root tile %d", xTile);
+        return xTile;
     }
 
     int evaluateRootTileDiffY() {
-        auto _currentExtent = evaluateCurrentExtent();
-        return (camera[1] - _currentExtent / 2) / _currentExtent;
+        short z = currentMapZTile();
+        if (z == 0 || z == 1) {
+            return 0;
+        }
+        int yTile = evaluateYTileNMultiplyY();
+        if(yTile == evaluateN())
+            yTile--;
+        LOGI("[ROOT] Y root tile %d", yTile);
+        return yTile;
     }
 
     void updateRootTile() {
@@ -102,18 +146,28 @@ public:
     }
 
     void updatePlanetGeometry() {
-        sphere.generateSphereData3(25, 25, planetRadius, 0, 0, M_PI);
+        sphere.generateSphereData3(500, 500, planetRadius,
+                                   0, 0, M_PI);
     }
 
     RenderTilesEnum evaluateRenderTilesCameraXType() {
         auto xTileCamP = proportionXCamCordByCurrentExtent();
-        LOGI("xTileCamP %f", xTileCamP);
+        LOGI("[TILE_CAMP] xTileCamP %f", xTileCamP);
         if(xTileCamP > 1 - showTilesXCordProportion) {
             return RenderTilesEnum::SHOW_RIGHT;
-        } else if(xTileCamP < showTilesXCordProportion) {
-           return RenderTilesEnum::SHOW_LEFT;
+        } else {
+            return RenderTilesEnum::SHOW_LEFT;
         }
-        return RenderTilesEnum::ONLY_MIDDLE;
+    }
+
+    RenderTilesEnum evaluateRenderTilesCameraYType() {
+        auto yTileCamP = proportionYCamCordByCurrentExtent();
+        LOGI("[TILE_CAMP] yTileCamP %f", yTileCamP);
+        if(yTileCamP > 1 - showTilesXCordProportion) {
+            return RenderTilesEnum::SHOW_TOP;
+        } else {
+            return RenderTilesEnum::SHOW_BOTTOM;
+        }
     }
 
     std::shared_ptr<Symbols> getSymbols() {return symbols;}
@@ -121,7 +175,6 @@ public:
     VisibleTileRenderMode visibleTileRenderMode = VisibleTileRenderMode::TILE;
 
     void drawPlanet();
-    void drawTile(TileForRenderer visibleTile, Matrix4 pvmTexture, std::vector<short> possibleDeltasVec);
     void loadAssets(AAssetManager *assetManager);
     TileCords evaluateTileCords(int dX, int dY);
     void loadAndRenderCurrentVisibleTiles();
@@ -154,14 +207,26 @@ private:
     float _lastEvaluatedScaleFloatScaleFactor;
     float _savedLastScaleStateMapZ;
 
+    TileCords topLeftVisibleCord;
+    TileCords bottomRightVisibleCord;
+
     unsigned int testTextureId;
 
-    void updateRenderTileProjection(int amountX, int amountY);
+    void updateRenderTileProjection(short amountX, short amountY);
 
     bool updateSavedLastDragXTileType() {
         RenderTilesEnum renderTilesEnumX = evaluateRenderTilesCameraXType();
         if(_savedDragRenderXTile != renderTilesEnumX) {
             _savedDragRenderXTile = renderTilesEnumX;
+            return true;
+        }
+        return false;
+    }
+
+    bool updateSavedLastDragYTileType() {
+        RenderTilesEnum renderTilesEnumY = evaluateRenderTilesCameraYType();
+        if(_savedDragRenderYTile != renderTilesEnumY) {
+            _savedDragRenderYTile = renderTilesEnumY;
             return true;
         }
         return false;
@@ -194,8 +259,20 @@ private:
         return evaluateExtentForScaleFactor(evaluateScaleFactorFormula());
     }
 
+    float getCurrentLonRad() {
+        return DEG2RAD(getPlanetCurrentLongitude());
+    }
+
+    float getCurrentLatRad() {
+        return DEG2RAD(getPlanetCurrentLatitude());
+    }
+
     float getPlanetCurrentLongitude() {
-        return cameraXAngleDeg;
+        float result = fmod(cameraXAngleDeg + 180.0, 360.0);
+        if (result < 0) {
+            result += 360.0;
+        }
+        return result - 180.0;
     }
 
     float getPlanetCurrentLatitude() {
@@ -211,11 +288,13 @@ private:
 
     Matrix4 projectionMatrix;
     Matrix4 rendererTileProjectionMatrix;
+    Matrix4 rendererTileProjectionMatrixUI_TEST;
 
     const uint32_t extent = 4096;
     float dragFingerMapSpeed = 0.00002f;
 
     RenderTilesEnum _savedDragRenderXTile = RenderTilesEnum::ONLY_MIDDLE;
+    RenderTilesEnum _savedDragRenderYTile = RenderTilesEnum::ONLY_MIDDLE;
 
     std::vector<TileCords> currentVisibleTiles = {};
 

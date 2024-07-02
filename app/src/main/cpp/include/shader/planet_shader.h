@@ -13,61 +13,43 @@ public:
     PlanetShader(AAssetManager* assetManager, const char* vertexShaderName, const char* fragmentShaderName);
 
     GLint getPosLocation() const {return a_pos;}
-    GLint getColorLocation() const {return u_color;}
     GLint getTileTextureLocation0() const {return u_tile_0;}
-    GLint getTileTextureLocation1() const {return u_tile_1;}
-    GLint getTileTextureLocation2() const {return u_tile_2;}
-    GLint getTileTextureLocation3() const {return u_tile_3;}
-    GLint getTileTextureCoordinates0() const {return a_tile_cords_0;}
-    GLint getTileTextureCoordinates1() const {return a_tile_cords_1;}
-    GLint getTileTextureCoordinates2() const {return a_tile_cords_2;}
-    GLint getTileTextureCoordinates3() const {return a_tile_cords_3;}
     GLint getUnitSquareCoordinates() const {return a_unit_square_cords;}
 
-    GLint getTileTextureCoordinate(short index) {
-        if(index == 0) {
-            return getTileTextureCoordinates0();
-        }
-        if(index == 1) {
-            return getTileTextureCoordinates1();
-        }
-        if(index == 2) {
-            return getTileTextureCoordinates2();
-        }
-        if(index == 3) {
-            return getTileTextureCoordinates3();
-        }
-        throw std::invalid_argument("I have not planet tile texture coordinate with passed index");
-    }
+    GLint getTileTopLeftXPtr() const {return u_topLeftX;}
+    GLint getTileTopLeftYPtr() const {return u_topLeftY;}
 
-    GLint getTileTextureLocation(short index) {
-        if(index == 0) {
-            return getTileTextureLocation0();
-        }
-        if(index == 1) {
-            return getTileTextureLocation1();
-        }
-        if(index == 2) {
-            return getTileTextureLocation2();
-        }
-        if(index == 3) {
-            return getTileTextureLocation3();
-        }
-        throw std::invalid_argument("I have not planet tile texture location with passed index");
-    }
+    GLint getTileBottomRightXPtr() const {return u_bottomRightX;}
+    GLint getTileBottomRightYPtr() const {return u_bottomRightY;}
+
+    GLint getShiftX() const {return u_shiftX;}
+    GLint getShiftY() const {return u_shiftY;}
+
+    GLint getZoom() const {return u_zoom;}
+
+    GLint getStartX() const {return u_startX;}
+    GLint getEndX() const {return u_endX;}
+    GLint getStartY() const {return u_startY;}
+    GLint getEndY() const {return u_endY;}
 
 private:
     GLint a_pos;
-    GLint a_tile_cords_0;
-    GLint a_tile_cords_1;
-    GLint a_tile_cords_2;
-    GLint a_tile_cords_3;
     GLint a_unit_square_cords;
-    GLint u_color;
     GLint u_tile_0;
-    GLint u_tile_1;
-    GLint u_tile_2;
-    GLint u_tile_3;
+    GLint u_topLeftX;
+    GLint u_topLeftY;
+    GLint u_bottomRightX;
+    GLint u_bottomRightY;
+
+    GLint  u_startX;
+    GLint  u_endX;
+
+    GLint  u_startY;
+    GLint  u_endY;
+
+    GLint  u_shiftX;
+    GLint  u_shiftY;
+    GLint  u_zoom;
 };
 
 

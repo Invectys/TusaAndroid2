@@ -4,9 +4,8 @@
 
 #include "renderer/render_tile_coordinates.h"
 
-void RenderTileCoordinates::render(Matrix4 pvmm, TileForRenderer visibleTile, int extent) {
+void RenderTileCoordinates::render(Matrix4 pvmm, TileForRenderer visibleTile, int extent, float frameWidth) {
     float fExtent = (float)extent;
-    float frameWidth = 200;
     float framePoints[] = {
             0, 0,
             frameWidth, -frameWidth,
