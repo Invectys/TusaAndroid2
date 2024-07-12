@@ -9,6 +9,7 @@
 #include <cmath>
 #include <vector>
 #include "map/mercator.h"
+#include "matrices.h"
 #include <android/log.h>
 #include <GLES2/gl2.h>
 #include <string>
@@ -20,6 +21,52 @@ class CommonUtils {
 public:
     static void printGlError() {
         LOGI("Open gl error %s", getGLErrorString().c_str());
+    }
+
+    static void extractPlanesFromProjMat(
+            Matrix4 mat,
+            float left[4], float right[4],
+            float bottom[4], float top[4],
+            float near[4], float far[4])
+    {
+        for (int i = 4; i--; ) { left[i]   = mat.getColumn(i)[3] + mat.getColumn(i)[0]; }
+        for (int i = 4; i--; ) { right[i]  = mat.getColumn(i)[3] - mat.getColumn(i)[0]; }
+        for (int i = 4; i--; ) { bottom[i] = mat.getColumn(i)[3] + mat.getColumn(i)[1]; }
+        for (int i = 4; i--; ) { top[i]    = mat.getColumn(i)[3] - mat.getColumn(i)[1]; }
+        for (int i = 4; i--; ) { near[i]   = mat.getColumn(i)[3] + mat.getColumn(i)[2]; }
+        for (int i = 4; i--; ) { far[i]    = mat.getColumn(i)[3] - mat.getColumn(i)[2]; }
+    }
+
+    static void normalizePlane(float (&plane)[4]) {
+        float A = plane[0];
+        float B = plane[1];
+        float C = plane[2];
+        float D = plane[3];
+        float length = sqrt(pow(A, 2) + pow(B, 2) + pow(C, 2));
+        plane[0] = A / length;
+        plane[1] = B / length;
+        plane[2] = C / length;
+        plane[3] = D / length;
+    }
+
+    static float calcDistanceFromPointToPlane(float plane[4], float point[3]) {
+        float x0 = point[0];
+        float y0 = point[1];
+        float z0 = point[2];
+
+        float A = plane[0];
+        float B = plane[1];
+        float C = plane[2];
+        float D = plane[3];
+
+        float distance =
+                std::abs(A * x0 + B * y0 + C * z0 + D) /
+                sqrt(pow(A, 2.0) + pow(B, 2.0) + pow(C, 2.0));
+        return distance;
+    }
+
+    static int sign(int x) {
+        return (x > 0) - (x < 0);
     }
 
     static std::string getGLErrorString() {

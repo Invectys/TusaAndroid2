@@ -76,6 +76,20 @@ public:
         return (-cameraRootZ * evaluateScaleFactorFormulaForZ(0));
     }
 
+    TileCords getClearTileCord(int x, int y, int z, short rx, short ry) {
+        return TileCords {
+                x,
+                y,
+                x,
+                y,
+                z,
+                false,
+                false,
+                rx,
+                ry
+        };
+    }
+
     // Устанавливает камеру в центр тайла
     void updateCordsByTiles(int xTile, int yTile) {
         *rootTileX = xTile;
@@ -133,10 +147,6 @@ public:
         renderTileGeometry.scaleZCordDrawHeapsDiff(evaluateScaleFactorFormula());
         planetRadius = evaluateBasicPlanetRadius();
         updatePlanetGeometry();
-        updateVisibleTiles();
-
-
-
 
         LOGI("Current tile extent %f", evaluateCurrentExtent());
     }
@@ -146,27 +156,36 @@ public:
     }
 
     void updatePlanetGeometry() {
-        sphere.generateSphereData3(500, 500, planetRadius,
+        sphere.generateSphereData3(250, 250, planetRadius,
                                    0, 0, M_PI);
+    }
+
+    Matrix4 calculateViewMatrix() {
+        Matrix4 viewMatrix = Matrix4();
+        viewMatrix.translate(0, 0, camera[2]);
+        return viewMatrix;
     }
 
     RenderTilesEnum evaluateRenderTilesCameraXType() {
         auto xTileCamP = proportionXCamCordByCurrentExtent();
-        LOGI("[TILE_CAMP] xTileCamP %f", xTileCamP);
+
         if(xTileCamP > 1 - showTilesXCordProportion) {
+            LOGI("[TILE_CAMP] xTileCamP %f SHOW_RIGHT", xTileCamP);
             return RenderTilesEnum::SHOW_RIGHT;
         } else {
+            LOGI("[TILE_CAMP] xTileCamP %f SHOW_LEFT", xTileCamP);
             return RenderTilesEnum::SHOW_LEFT;
         }
     }
 
     RenderTilesEnum evaluateRenderTilesCameraYType() {
         auto yTileCamP = proportionYCamCordByCurrentExtent();
-        LOGI("[TILE_CAMP] yTileCamP %f", yTileCamP);
         if(yTileCamP > 1 - showTilesXCordProportion) {
-            return RenderTilesEnum::SHOW_TOP;
-        } else {
+            LOGI("[TILE_CAMP] yTileCamP %f SHOW_BOTTOM", yTileCamP);
             return RenderTilesEnum::SHOW_BOTTOM;
+        } else {
+            LOGI("[TILE_CAMP] yTileCamP %f SHOW_TOP", yTileCamP);
+            return RenderTilesEnum::SHOW_TOP;
         }
     }
 
@@ -267,16 +286,36 @@ private:
         return DEG2RAD(getPlanetCurrentLatitude());
     }
 
-    float getPlanetCurrentLongitude() {
-        float result = fmod(cameraXAngleDeg + 180.0, 360.0);
+    float getPlanetCurrentLongitude(float xDeg) {
+        float result = fmod(xDeg + 180.0, 360.0);
         if (result < 0) {
             result += 360.0;
         }
         return result - 180.0;
     }
 
+    float getPlanetCurrentLongitude() {
+        return getPlanetCurrentLongitude(cameraXAngleDeg);
+    }
+
     float getPlanetCurrentLatitude() {
         return cameraYAngleDeg;
+    }
+
+    void drawPoint(Matrix4 matrix, float x, float y, float z) {
+        auto errorstr = CommonUtils::getGLErrorString();
+        auto plainShader = shadersBucket.get()->plainShader;
+        float points[] = {x, y, z};
+        const GLfloat color[] = { 1, 0, 0, 1};
+        glUseProgram(plainShader->program);
+        glUniform4fv(plainShader->getColorLocation(), 1, color);
+        glUniformMatrix4fv(plainShader->getMatrixLocation(), 1, GL_FALSE, matrix.get());
+        glVertexAttribPointer(plainShader->getPosLocation(), 3, GL_FLOAT,
+                              GL_FALSE, 0, points
+        );
+        glEnableVertexAttribArray(plainShader->getPosLocation());
+        glDrawArrays(GL_POINTS, 0, 1);
+        errorstr = CommonUtils::getGLErrorString();
     }
 
 
@@ -310,9 +349,13 @@ private:
     float cameraYAngleDeg = 0;
     float cameraXAngleDeg = 0;
     int screenW, screenH;
+
+    float renderXDiffSize = 0;
+    float renderYDiffSize = 0;
+
     Cache* cache;
     TilesStorage tilesStorage = TilesStorage(cache);
-    static const short rendererTilesSize = 4;
+    static const short rendererTilesSize = 30;
     TileForRenderer tilesForRenderer[rendererTilesSize] = {};
     std::vector<float> cord_tiles[rendererTilesSize] = {};
 

@@ -74,6 +74,8 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
         csscolorparser/csscolorparser.cpp
 )
 
+add_subdirectory(${PROJECT_SOURCE_DIR}/eigen)
+
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE include)
 
 include(${PROJECT_SOURCE_DIR}/vendor/protozero.cmake)
@@ -101,6 +103,7 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
         rapidjson
         curl
         freetype
+        Eigen3::Eigen
         )
 
 target_link_libraries(${CMAKE_PROJECT_NAME} log)

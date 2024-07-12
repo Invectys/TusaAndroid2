@@ -14,6 +14,9 @@
 #include <iostream>
 #include <thread>
 #include <stack>
+#include <Eigen/Dense>
+#include <Eigen/Core>
+#include <Eigen/StdVector>
 
 bool DEBUG_TILE = false;
 bool UPDATE_ON_DRAG = true;
@@ -239,12 +242,11 @@ void Renderer::renderFrame() {
 
 void Renderer::drawPlanet() {
     std::shared_ptr<PlanetShader> planetShader = shadersBucket->planetShader;
-    Matrix4 viewMatrix = Matrix4();
-    viewMatrix.translate(0, 0, camera[2]);
+    std::shared_ptr<PlainShader> plainShader = shadersBucket->plainShader;
+    Matrix4 viewMatrix = calculateViewMatrix();
     Matrix4 pvm = projectionMatrix * viewMatrix;
     Matrix4 modelMatrix = Matrix4();
-    modelMatrix.rotateY(90);
-    modelMatrix.rotate(cameraXAngleDeg, 0, -1, 0);
+    modelMatrix.rotate(cameraXAngleDeg - 90, 0, -1, 0);
     modelMatrix.rotate(cameraYAngleDeg, 1, 0, 0);
     modelMatrix.translate(0, 0, -planetRadius);
     Matrix4 pvmm = pvm * modelMatrix;
@@ -266,10 +268,9 @@ void Renderer::drawPlanet() {
             yStartBorder = topLeftVisibleCord.tileY * tileP;
         }
 
-        xEndBorder = tileP * 2 + xStartBorder;
-        yEndBorder = tileP * 2 + yStartBorder;
+        xEndBorder = tileP * renderXDiffSize + xStartBorder;
+        yEndBorder = tileP * renderYDiffSize + yStartBorder;
     }
-
 
 
     float shiftX = topLeftVisibleCord.xNormalized * tileP;
@@ -299,6 +300,208 @@ void Renderer::drawPlanet() {
     //glDrawElements(GL_LINE_LOOP, sphere.sphere_indices.size(), GL_UNSIGNED_INT, sphere.sphere_indices.data());
     glDrawElements(GL_TRIANGLES, sphere.sphere_indices.size(), GL_UNSIGNED_INT, sphere.sphere_indices.data());
     //CommonUtils::printGlError();
+
+    //    Math
+    float leftPlane[4] = {};
+    float rightPlane[4] = {};
+    float bottomPlane[4] = {};
+    float topPlane[4] = {};
+    float nearPlane[4] = {};
+    float farPlane[4] = {};
+    CommonUtils::extractPlanesFromProjMat(pvm, leftPlane, rightPlane, bottomPlane, topPlane, nearPlane, farPlane);
+//    CommonUtils::normalizePlane(leftPlane);
+//    CommonUtils::normalizePlane(rightPlane);
+//    CommonUtils::normalizePlane(bottomPlane);
+//    CommonUtils::normalizePlane(topPlane);
+//    CommonUtils::normalizePlane(nearPlane);
+//    CommonUtils::normalizePlane(farPlane);
+    float planetCenter[3] = { 0, 0, -planetRadius };
+    float distanceToLeftPlane = CommonUtils::calcDistanceFromPointToPlane(leftPlane, planetCenter);
+    bool intersectsLeftPlane = distanceToLeftPlane <= planetRadius;
+    float distanceToRightPlane = CommonUtils::calcDistanceFromPointToPlane(rightPlane, planetCenter);
+    bool intersectsRightPlane = distanceToRightPlane <= planetRadius;
+    float distanceToBottomPlane = CommonUtils::calcDistanceFromPointToPlane(bottomPlane, planetCenter);
+    bool intersectsBottomPlane = distanceToBottomPlane <= planetRadius;
+    float distanceToTopPlane = CommonUtils::calcDistanceFromPointToPlane(topPlane, planetCenter);
+    bool intersectsTopPlane = distanceToTopPlane <= planetRadius;
+    float distanceToNearPlane = CommonUtils::calcDistanceFromPointToPlane(nearPlane, planetCenter);
+    bool intersectsNearPlane = distanceToNearPlane <= planetRadius;
+    float distanceToFarPlane = CommonUtils::calcDistanceFromPointToPlane(farPlane, planetCenter);
+    bool intersectsFarPlane = distanceToFarPlane <= planetRadius;
+
+    float A1 = leftPlane[0];
+    float B1 = leftPlane[1];
+    float C1 = leftPlane[2];
+    float D1 = leftPlane[3];
+
+    float A2 = topPlane[0];
+    float B2 = topPlane[1];
+    float C2 = topPlane[2];
+    float D2 = topPlane[3];
+
+    float k2 = - C2 / B2;
+    float k3 = - D2 / B2;
+    float ay__ = pow(k2, 2.0) + 1;
+    float by__ = 2 * (k2 * k3 + planetRadius);
+    float cy__ = pow(k3, 2.0);
+    float discr__ = pow(by__, 2.0) - 4 * ay__ * cy__;
+    LOGI("DISCR__ %f", discr__);
+    if (discr__ > 0) {
+        float z1_ = (-by__ + sqrt(discr__)) / (2 * ay__);
+        float z2_ = (-by__ - sqrt(discr__)) / (2 * ay__);
+        float y1_ = k2 * z1_ + k3;
+        float y2_ = k2 * z2_ + k3;
+        LOGI("p1__(%f, %f) p2(%f, %f)", y1_, z1_, y2_, z2_);
+
+        Eigen::Vector2d v1(0, 1);
+        Eigen::Vector2d v2(y1_, z1_ + planetRadius);
+        double dotProduct = v1.dot(v2);
+        double norm1 = v1.norm();
+        double norm2 = v2.norm();
+        double cosTheta = dotProduct / (norm1 * norm2);
+        double angleRadians = std::acos(cosTheta);
+        double angleDegrees = angleRadians * (180.0 / M_PI);
+        LOGI("Latitude (%f)", (angleDegrees + cameraYAngleDeg));
+
+        glDisable(GL_DEPTH_TEST);
+        glDisable(GL_STENCIL_TEST);
+        drawPoint(pvm, 0, y1_, z1_);
+        glEnable(GL_DEPTH_TEST);
+        glEnable(GL_STENCIL_TEST);
+    }
+
+    float k = - (D1 / A1);
+    float k1 = - C1 / A1;
+
+    float ay_ = pow(k1, 2.0) + 1;
+    float by_ = 2 * (k * k1 + planetRadius);
+    float cy_ = pow(k, 2.0);
+    float discr_ = pow(by_, 2.0) - 4 * ay_ * cy_;
+    LOGI("DISCR_ %f", discr_);
+    if (discr_ > 0) {
+        float z1_ = (-by_ + sqrt(discr_)) / (2 * ay_);
+        float z2_ = (-by_ - sqrt(discr_)) / (2 * ay_);
+        float x1_ = k + k1 * z1_;
+        float x2_ = k + k1 * z2_;
+        LOGI("p1(%f, %f) p2(%f, %f)", x1_, z1_, x2_, z2_);
+
+        Eigen::Vector2d v1(0, 1);
+        Eigen::Vector2d v2(x1_, z1_ + planetRadius); // replace x and y with the desired values
+        double dotProduct = v1.dot(v2);
+        double norm1 = v1.norm();
+        double norm2 = v2.norm();
+        double cosTheta = dotProduct / (norm1 * norm2);
+        double angleRadians = std::acos(cosTheta);
+        double angleDegrees = angleRadians * (180.0 / M_PI);
+        LOGI("Longitude (%f)", getPlanetCurrentLongitude(-1 * (angleDegrees - cameraXAngleDeg)));
+
+        glDisable(GL_DEPTH_TEST);
+        glDisable(GL_STENCIL_TEST);
+        drawPoint(pvm, x1_, 0, z1_);
+        glEnable(GL_DEPTH_TEST);
+        glEnable(GL_STENCIL_TEST);
+    }
+
+
+    float leftTopPlaneLineVector[3] = {
+            B1 * C2 - C1 * B2, // a
+            C1 * A2 - A1 * C2, // b
+            A1 * B2 - B1 * A2 // c
+    };
+
+    float det = A1 * B2 - A2 * B1;
+    float detX = (-D1) * B2 - (-D2) * B1;
+    float detY = A1 * (-D2) - A2 * (-D1);
+
+    float x0 = detX / det;
+    float y0 = detY / det;
+    float z0 = 0;
+
+    float a = leftTopPlaneLineVector[0];
+    float b = leftTopPlaneLineVector[1];
+    float c = leftTopPlaneLineVector[2];
+
+    float m = z0 - (-planetRadius);
+    float Ay = pow(a, 2.0) + pow(b, 2.0) + pow(c, 2.0);
+    float By = 2 * (x0 * a + y0 * b + m * c);
+    float Cy = pow(x0, 2.0) + pow(y0, 2.0) + pow(m, 2.0) - pow(planetRadius, 2.0);
+    float discremenant = pow(By, 2.0) - 4 * Ay * Cy;
+    LOGI("Discremenant = %f", discremenant);
+    LOGI("intersectsLeftPlane = %d", intersectsLeftPlane);
+    if (discremenant > 0) {
+        float t1 = (-By + sqrt(discremenant)) / (2 * Ay);
+        float t2 = (-By - sqrt(discremenant)) / (2 * Ay);
+
+        float xi1 = x0 + a * t1;
+        float yi1 = y0 + b * t1;
+        float zi1 = z0 + c * t1;
+        float zi1_c = zi1 + planetRadius;
+
+        float xi2 = x0 + a * t2;
+        float yi2 = y0 + b * t2;
+        float zi2 = z0 + c * t2;
+        float zi2_c = zi2 + planetRadius;
+
+//        Eigen::Vector3d mainAxisVector(0, 0, planetRadius);
+//        Eigen::Vector3d topLeftVector(xi2, yi2, zi2_c);
+//        Eigen::Vector3d v1(0, planetRadius, 0);
+//        Eigen::Vector3d v2(xi2, zi2_c, yi2);
+//        Eigen::Vector2d v1_proj(v1.x(), v1.y());
+//        Eigen::Vector2d v2_proj(v2.x(), v2.y());
+//        double dot_product = v1_proj.dot(v2_proj);
+//        double magnitude_v1 = v1_proj.norm();
+//        double magnitude_v2 = v2_proj.norm();
+//        double cos_theta = dot_product / (magnitude_v1 * magnitude_v2);
+//        double angle_rad = std::acos(cos_theta);
+//        double angle_deg = angle_rad * (180.0 / M_PI);
+//        LOGI("Angle lon(%f)", angle_deg);
+
+        float mi2 = sqrt(pow(xi2, 2.0) + pow(zi2_c, 2.0));
+        float fromMainAxisLongitude = atan(xi2 / zi2_c);
+        float fromMainAxisLatitude = atan(yi2 / mi2);
+
+        float mainAxisLongitudeDelta = RAD2DEG(fromMainAxisLongitude);
+        float mainAxisLatitudeDelta = 90 - RAD2DEG(fromMainAxisLatitude);
+
+        LOGI("FROM_MAIN lon(%f) camX(%f)", mainAxisLongitudeDelta, cameraXAngleDeg);
+
+        float xc = 0;
+        float yc = 0;
+        float zc = planetRadius;
+
+//        glDisable(GL_DEPTH_TEST);
+//        glDisable(GL_STENCIL_TEST);
+//        drawPoint(pvm, 0, 0, 0);
+//        glEnable(GL_DEPTH_TEST);
+//        glEnable(GL_STENCIL_TEST);
+
+//        modelMatrix.rotate(cameraXAngleDeg - 90, 0, -1, 0);
+//        modelMatrix.rotate(cameraYAngleDeg, 1, 0, 0);
+
+        float degLongitude = cameraXAngleDeg - mainAxisLongitudeDelta;
+        LOGI("TOP_LEFT_3 lon(%f)", degLongitude);
+
+        Eigen::Matrix3d rotationMatrixUnitY;
+        Eigen::Matrix3d rotationMatrixUnitX;
+        rotationMatrixUnitY = Eigen::AngleAxisd(DEG2RAD(cameraXAngleDeg + mainAxisLongitudeDelta), -Eigen::Vector3d::UnitY());
+        rotationMatrixUnitX = Eigen::AngleAxisd(DEG2RAD(cameraYAngleDeg), Eigen::Vector3d::UnitX());
+        Eigen::Vector3d point(xi2, yi2, zi2 + planetRadius);
+        Eigen::Vector3d rotatedPointUnitY = rotationMatrixUnitX * rotationMatrixUnitY * point;
+
+        float finalX_RUnitY = rotatedPointUnitY.x();
+        float finalY_RUnitY = rotatedPointUnitY.y();
+        float finalZ_RUnitY = rotatedPointUnitY.z();
+
+
+        float longitudeAngleRad = atan2(finalZ_RUnitY, finalX_RUnitY);
+        float longitudeDeg = RAD2DEG(longitudeAngleRad);
+
+        float m1 = sqrt(pow(finalX_RUnitY, 2.0) + pow(finalZ_RUnitY, 2.0));
+        float latitudeAngleRad = atan(finalY_RUnitY / m1);
+        float latitudeDeg = RAD2DEG(latitudeAngleRad);
+        LOGI("TOP_LEFT_1 lon_s(%f) lat_s(%f)", longitudeDeg, latitudeDeg);
+        LOGI("TOP_LEFT_2 lon(%f) lat(%f)", longitudeDeg, latitudeDeg);
+    }
 }
 
 
@@ -306,6 +509,7 @@ void Renderer::onSurfaceChanged(int w, int h) {
     screenW = w;
     screenH = h;
     updateFrustum();
+    updateVisibleTiles();
 
     for(short renderTextureIndex = 0; renderTextureIndex < rendererTilesSize; renderTextureIndex++) {
         GLuint renderTexturePtr = renderTexture[renderTextureIndex];
@@ -334,19 +538,56 @@ void Renderer::updateVisibleTiles(bool render) {
     std::vector<TileCords> newVisibleTiles = {};
     auto currentMapZ = currentMapZTile();
 
+    float longitude = getCurrentLonRad();
+    float latitude = getCurrentLatRad();
+    float x = CommonUtils::longitudeRadToX(longitude);
+    float y = CommonUtils::latitudeRadToY(latitude);
 
-    // Алгоритм определния на основании того что видит юзер
-    projectionMatrix
-
-
-    if(currentMapZ == 0) {
-        auto topCords = evaluateTileCords(0, 0);
-        topCords.renderPosX = 0;
-        topCords.renderPosY = 0;
+    if (currentMapZ == 0) {
+        renderXDiffSize = 1;
+        renderYDiffSize = 1;
+        updateRenderTileProjection(1, 1);
+        auto topCords = getClearTileCord(0, 0, currentMapZ, 0 ,0);
         topLeftVisibleCord = topCords;
         bottomRightVisibleCord = topCords;
         newVisibleTiles.push_back(topCords);
-    } else {
+    }
+
+    if (currentMapZ == 1) {
+        renderXDiffSize = 2;
+        renderYDiffSize = 2;
+        updateRenderTileProjection(2, 2);
+        auto topLeft = getClearTileCord(0, 0, currentMapZ, 0 ,0);
+        auto bottomLeft = getClearTileCord(0, 1, currentMapZ, 0 ,1);
+        auto topRight = getClearTileCord(1, 0, currentMapZ, 1 ,0);
+        auto bottomRight = getClearTileCord(1, 1, currentMapZ, 1 ,1);
+        topLeftVisibleCord = topLeft;
+        bottomRightVisibleCord = bottomRight;
+        newVisibleTiles.push_back(topLeft);
+        newVisibleTiles.push_back(bottomLeft);
+        newVisibleTiles.push_back(topRight);
+        newVisibleTiles.push_back(bottomRight);
+    }
+
+    if (currentMapZ == 2) {
+        renderXDiffSize = 4;
+        renderYDiffSize = 4;
+        updateRenderTileProjection(4, 4);
+        for (int xt = 0; xt <= 3; xt++) {
+            for (int yt = 0; yt <= 3; yt++) {
+                auto tile = getClearTileCord(xt, yt, currentMapZ, xt ,yt);
+                newVisibleTiles.push_back(tile);
+            }
+        }
+        topLeftVisibleCord = getClearTileCord(0, 0, currentMapZ, 0 ,0);
+        bottomRightVisibleCord = getClearTileCord(3, 3, currentMapZ, 3 ,3);
+    }
+
+
+    if (currentMapZ > 2) {
+        updateRenderTileProjection(2, 2);
+        renderXDiffSize = 2;
+        renderYDiffSize = 2;
         RenderTilesEnum renderTilesYEnum = evaluateRenderTilesCameraYType();
         renderTilesYEnum = RenderTilesEnum::SHOW_BOTTOM;
         float dY = 1;
@@ -511,6 +752,9 @@ void Renderer::drag(float dx, float dy) {
 }
 
 void Renderer::scale(float factor) {
+//    if (factor < 2.354237)
+//        factor = 2.354237;
+    LOGI("Factor %f", factor);
     updateMapZoomScaleFactor(factor); // обновляет текущий скейл, паарметр скейла
     LOGI("Scale factor %f", scaleFactorZoom);
 
@@ -736,13 +980,6 @@ void Renderer::updateFrustum() {
                                   currentCameraZBorder - currentAndNextDistanceCamDiff,
                                   currentCameraZBorder + planetRadius
     );
-
-    short z = currentMapZTile();
-    if(z == 0) {
-        updateRenderTileProjection(1, 1);
-    } else {
-        updateRenderTileProjection(2, 2);
-    }
 }
 
 void Renderer::loadTextures(AAssetManager *assetManager) {
@@ -785,6 +1022,7 @@ void Renderer::onSurfaceCreated(AAssetManager *assetManager) {
 
     glEnable(GL_STENCIL_TEST);
 
+
 //    glGenBuffers(1, &sphereVBO);
 //    glBindBuffer(GL_ARRAY_BUFFER, sphereVBO);
 //    glBufferData(GL_ARRAY_BUFFER, sphere.sphere_vertices.size() * sizeof(float), sphere.sphere_vertices.data(), GL_STATIC_DRAW);
@@ -801,7 +1039,6 @@ void Renderer::updateRenderTileProjection(short amountX, short amountY) {
     // будет занимать четверть экрана всегда, можно смотреть что там отрендрилось в тайлах
     rendererTileProjectionMatrixUI_TEST = setOrthoFrustum(0, 4096 * 4, -4096 * 4, 0, 0.1, 100);
 }
-
 
 
 
