@@ -40,10 +40,13 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
         renderer/render_tile_coordinates.cpp
         renderer/render_tiles_enum.cpp
         renderer/tile_cords.cpp
+        renderer/center_borders_cords.cpp
+        renderer/corners_cords.cpp
 
         util/frustrums.cpp
         util/matrices.cpp
         util/timer.cpp
+        util/eigen_gl.cpp
 
         network/request.cpp
 

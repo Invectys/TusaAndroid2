@@ -24,6 +24,8 @@ public:
     Symbol getSymbol(char c);
 
     void renderText(std::string text, float x, float y, Matrix4 translate, float scale);
+    void renderText2(std::string text, Matrix4 m, float x, float y, float z, float symbolScale);
+
 
     ~Symbols() {
         FT_Done_Face(face);

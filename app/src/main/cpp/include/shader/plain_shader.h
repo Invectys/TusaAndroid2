@@ -14,10 +14,12 @@ public:
 
     GLint getPosLocation() const {return a_pos;}
     GLint getColorLocation() const {return u_color;}
+    GLint getPointSizeLocation() const {return u_pointSize;}
 
 private:
     GLint a_pos;
     GLint u_color;
+    GLint u_pointSize;
 };
 
 

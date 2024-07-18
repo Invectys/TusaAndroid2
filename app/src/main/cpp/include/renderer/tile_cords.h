@@ -18,6 +18,11 @@ public:
     short yNormalized;
     int renderPosX = 0;
     int renderPosY = 0;
+    float xComponent = 0;
+    float yComponent = 0;
+    float longitudeRad = 0;
+    float latitudeRad = 0;
+    bool hasLatitudeAndLongitudeRad = false;
 
     std::string toString() {
         return "(" + std::to_string(tileX) + ", " + std::to_string(tileY) + ", " + std::to_string(tileZ) + ")";

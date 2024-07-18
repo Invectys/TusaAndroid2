@@ -21,82 +21,83 @@ public:
         }
     }
 
-    void generateSphereData3(int stackCount, int sectorCount, float radius,
+    void generateSphereData5(int stackCount, int sectorCount,
+                             float radius,
                              float centerLatitudeRad,
                              float centerLongitudeRad,
-                             float fromCenterDeltaRad
+                             float fromCenterLongitudeDeltaRad,
+                             float fromCenterLatitudeDeltaRad
     ) {
         // clear memory of prev arrays
         std::vector<float>().swap(sphere_vertices);
         std::vector<unsigned int>().swap(sphere_indices);
         std::vector<float>().swap(normals);
-        std::vector<float>().swap(texCords);
         std::vector<float>().swap(unitSquareCoordinates);
 
-        float sectorStep = 2 * M_PI / sectorCount;
-        float stackStep = M_PI / stackCount;
+        float sectorStep = 2 * fromCenterLongitudeDeltaRad / sectorCount; // Один шаг по longitude
+        float stackStep =  2 * fromCenterLatitudeDeltaRad / stackCount; // Один шаг по latitude
 
-        int stackIndexIndicesStartFrom = -1;
-        int stackIndexIndicesTo;
+        centerLongitudeRad = ((int)(centerLongitudeRad / sectorStep) * sectorStep);
+        centerLatitudeRad = ((int)(centerLatitudeRad / stackStep) * stackStep);
 
-        int sectorIndexStartFrom = -1;
-        int sectorIndexTo = 0;
+        fromCenterLongitudeDeltaRad = ((int)(fromCenterLongitudeDeltaRad / sectorStep) * sectorStep);
+        fromCenterLatitudeDeltaRad = ((int)(fromCenterLatitudeDeltaRad / stackStep) * stackStep);
+
+        bool bottomPointExists = false;
+        bool upPointExists = false;
+        int seamIndex = -1;
 
         for(int stackIndex = 0; stackIndex <= stackCount; stackIndex++) {
-            float stackAngle = -M_PI / 2.0 + stackStep * stackIndex;
-            float latitude = stackAngle; //    - PI / 2 to PI / 2
-
-            bool latitudeAngleValid = latitude >= centerLatitudeRad - fromCenterDeltaRad && latitude <= centerLatitudeRad + fromCenterDeltaRad;
-            if (!latitudeAngleValid)
-                continue;
-
-//            if(!(stackIndex == 0 || stackIndex == 1 || stackIndex == 2))
-//                continue;
-
-            if(stackIndexIndicesStartFrom == -1) {
-                stackIndexIndicesStartFrom = stackIndex;
-            }
-            stackIndexIndicesTo = stackIndex;
+            float stackRad = CommonUtils::clamp(centerLatitudeRad - fromCenterLatitudeDeltaRad + stackStep * stackIndex, -M_PI / 2, M_PI / 2); // текущий latitude
+            float latitude = stackRad; //    - PI / 2 to PI / 2
 
             // Это верхняя или нижняя точка
-            bool isBottomPoint = stackIndex == 0;
-            bool isUpPoint = stackIndex == stackCount;
+            bool isBottomPoint = stackIndex == 0 && latitude == -M_PI / 2;
+            bool isUpPoint = stackIndex == stackCount && latitude == M_PI / 2;
+            if (isBottomPoint)
+                bottomPointExists = true;
+            if (isUpPoint) {
+                upPointExists = true;
+            }
 
+            //float previousSectorRad = std::numeric_limits<float>::lowest();
             for(int sectorIndex = 0; sectorIndex <= sectorCount; sectorIndex++) {
+                float sectorRad = CommonUtils::normalizeLongitudeRad(centerLongitudeRad - fromCenterLongitudeDeltaRad + sectorStep * sectorIndex) + M_PI;
 
-                float sectorAngle = sectorStep * sectorIndex;
-                float longitude = sectorAngle - M_PI;
+                float y = radius * sinf(stackRad);
+                float x = radius * cosf(stackRad) * cosf(sectorRad);
+                float z = radius * cosf(stackRad) * sinf(sectorRad);
+                float s = CommonUtils::latitudeRadToY(latitude); // это координата тексуты карты вдоль latitude
 
-                bool longitudeAngleValid = longitude >= centerLongitudeRad - fromCenterDeltaRad && longitude <= centerLongitudeRad + fromCenterDeltaRad;
-                if(!longitudeAngleValid)
-                    continue;
+                float epsilon = sectorStep / 5;
+                bool isSeam = CommonUtils::compareFloats(sectorRad, 2 * M_PI, epsilon) ||
+                              CommonUtils::compareFloats(sectorRad, 0, epsilon);
+                if (isSeam && sectorIndex != sectorCount) {
+                    seamIndex = sectorIndex;
+                    sphere_vertices.push_back(x);
+                    sphere_vertices.push_back(y);
+                    sphere_vertices.push_back(z);
 
-//                if(!(sectorIndex == 1 || sectorIndex == 2 || sectorIndex == 3 || sectorIndex == 4)) {
-//                    continue;
-//                }
+                    unitSquareCoordinates.push_back(0); // Это конец карты, текстуры вдоль longitude
+                    unitSquareCoordinates.push_back(s);
 
-                if(sectorIndexStartFrom == -1) {
-                    sectorIndexStartFrom = sectorIndex;
+                    sphere_vertices.push_back(x);
+                    sphere_vertices.push_back(y);
+                    sphere_vertices.push_back(z);
+
+                    unitSquareCoordinates.push_back(1); // Это начало карты, текстуры вдоль longitude
+                    unitSquareCoordinates.push_back(s);
+                } else {
+                    sphere_vertices.push_back(x);
+                    sphere_vertices.push_back(y);
+                    sphere_vertices.push_back(z);
+
+                    float t = CommonUtils::clamp(1 - sectorRad / (2.0 * M_PI), 0.0, 1.0); // координата текстуры вдоль longitude
+                    unitSquareCoordinates.push_back(t);
+                    unitSquareCoordinates.push_back(s);
                 }
-                if(sectorIndex > sectorIndexTo) {
-                    sectorIndexTo = sectorIndex;
-                }
 
-                float y = radius * sinf(stackAngle);
-                float x = radius * cosf(stackAngle) * cosf(sectorAngle);
-                float z = radius * cosf(stackAngle) * sinf(sectorAngle);
 
-                sphere_vertices.push_back(x);
-                sphere_vertices.push_back(y);
-                sphere_vertices.push_back(z);
-
-                float t = std::min(std::max(0.0f, 1.0f - (float) sectorIndex / (float) sectorCount), 1.0f);
-                float s = CommonUtils::latitudeRadToY(stackAngle);
-                texCords.push_back(t); // longitude x
-                texCords.push_back(s); // latitude y
-
-                unitSquareCoordinates.push_back(t);
-                unitSquareCoordinates.push_back(s);
 
                 if(isUpPoint || isBottomPoint) {
                     break;
@@ -104,13 +105,12 @@ public:
             }
         }
 
-        bool bottomPointExists = stackIndexIndicesStartFrom == 0;
-        bool upPointExists = stackIndexIndicesTo == stackCount;
+        bool centerSeamExists = seamIndex != -1; // есть ли шов где-то по центру отображаемой зоны.
 
-        int stacksLastIndic = stackIndexIndicesTo - stackIndexIndicesStartFrom;
-        int fullRings = stacksLastIndic + 1 - upPointExists - bottomPointExists;
-        int pointsBySector = sectorIndexTo - sectorIndexStartFrom + 1;
-        int sectorsLastCount = sectorIndexTo - sectorIndexStartFrom;
+        int stacksLastIndic = stackCount;
+        int fullRings = stacksLastIndic + 1 - upPointExists - bottomPointExists; // количество колец без учета нижней и верхней шапки
+        int pointsBySector = sectorCount + centerSeamExists + 1; // сколько точек вдоль longitude есть +1 так как включительно <= лупом проходим
+        int sectorsLastCount = sectorCount;
 
         int upPoint = fullRings * (pointsBySector) - 1 + upPointExists + bottomPointExists;
         for(int stackIndex = 0; stackIndex <= stacksLastIndic; stackIndex++)
@@ -146,11 +146,13 @@ public:
             }
 
             // основной меш
-            //int startPoint = (stackIndex - bottomPointExists) * (pointsBySector) + bottomPointExists;
-            int startPoint = (stackIndex - bottomPointExists) * pointsBySector + bottomPointExists;
-            int nextStartPoint = startPoint + pointsBySector;
+            int startPoint = (stackIndex - bottomPointExists) * pointsBySector + bottomPointExists; // начальная точка первого кольца
+            int nextStartPoint = startPoint + pointsBySector; // верхний сосед кольца
 
-            for(int sectorIndex = 0; sectorIndex < sectorsLastCount; sectorIndex++, startPoint++, nextStartPoint++) {
+
+            for(int sectorIndex = 0; sectorIndex < sectorsLastCount + centerSeamExists; sectorIndex++, startPoint++, nextStartPoint++) {
+                if (sectorIndex == seamIndex)
+                    continue;
                 sphere_indices.push_back(startPoint);
                 sphere_indices.push_back(nextStartPoint);
                 sphere_indices.push_back(startPoint + 1);
@@ -164,7 +166,6 @@ public:
 
     std::vector<float> sphere_vertices;
     std::vector<float> normals;
-    std::vector<float> texCords;
     std::vector<float> unitSquareCoordinates;
     std::vector<unsigned int> sphere_indices;
     std::vector<unsigned int> lineIndices;

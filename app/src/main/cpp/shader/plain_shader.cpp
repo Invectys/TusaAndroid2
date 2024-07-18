@@ -15,5 +15,6 @@ PlainShader::PlainShader(AAssetManager* assetManager, const char* vertexShaderNa
     a_pos = glGetAttribLocation(program, "vertexPosition");
     u_matrix = glGetUniformLocation(program, "u_matrix");
     u_color = glGetUniformLocation(program, "u_color");
+    u_pointSize = glGetUniformLocation(program, "u_pointSize");
 }
 

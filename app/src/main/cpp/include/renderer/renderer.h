@@ -19,7 +19,13 @@
 #include "util/android_log.h"
 #include "geometry/sphere.h"
 #include "gl/triangle_example.h"
+#include "center_borders_cords.h"
+#include "corners_cords.h"
+#include "util/eigen_gl.h"
 #include <vector>
+#include <Eigen/Core>
+#include <Eigen/StdVector>
+#include <Eigen/Dense>
 
 
 class Renderer {
@@ -35,11 +41,10 @@ public:
     void onSurfaceChanged(int w, int h);
     void onSurfaceCreated(AAssetManager *assetManager);
     void renderFrame();
-    void updateVisibleTiles(bool render = true);
+    void updateVisibleTiles();
     void drag(float dx, float dy);
     void scale(float scaleFactor);
     void doubleTap();
-    int normalizeCoordinate(int coordinate);
 
     float proportionXCamCordByCurrentExtent() {
         float x = evaluateXTileNMultiplyX();
@@ -73,7 +78,7 @@ public:
     }
 
     float evaluateZeroZoomCameraDist() {
-        return (-cameraRootZ * evaluateScaleFactorFormulaForZ(0));
+        return (cameraRootDistance * evaluateScaleFactorFormulaForZ(0));
     }
 
     TileCords getClearTileCord(int x, int y, int z, short rx, short ry) {
@@ -88,17 +93,6 @@ public:
                 rx,
                 ry
         };
-    }
-
-    // Устанавливает камеру в центр тайла
-    void updateCordsByTiles(int xTile, int yTile) {
-        *rootTileX = xTile;
-        *rootTileY = yTile;
-        auto _currentExtent = evaluateCurrentExtent();
-        auto cameraXStart = - *rootTileX * _currentExtent - _currentExtent / 2;
-        auto cameraYStart = *rootTileY * _currentExtent + _currentExtent;
-        camera[0] = cameraXStart;
-        camera[1] = cameraYStart;
     }
 
     // считает рут тайл за счет камеры, рут тайл используется для определения того что видит юзер
@@ -136,17 +130,14 @@ public:
         rootTileX = new int(0);
         rootTileY = new int(0);
         loadAssets(assetManager);
-        cameraRootZ = -3500;
+        cameraRootDistance = 3500;
         fovy = 65;
         updateMapZoomScaleFactor(scaleFactor);
         //updateCordsByTiles(0, 0);
-        camera[0] = 0;
-        camera[1] = 0;
-        updateMapCameraZPosition();
+        updateCameraPosition();
         _savedLastScaleStateMapZ = currentMapZTile();
         renderTileGeometry.scaleZCordDrawHeapsDiff(evaluateScaleFactorFormula());
         planetRadius = evaluateBasicPlanetRadius();
-        updatePlanetGeometry();
 
         LOGI("Current tile extent %f", evaluateCurrentExtent());
     }
@@ -155,39 +146,7 @@ public:
         return evaluateZeroZoomCameraDist() * 0.3f;
     }
 
-    void updatePlanetGeometry() {
-        sphere.generateSphereData3(250, 250, planetRadius,
-                                   0, 0, M_PI);
-    }
-
-    Matrix4 calculateViewMatrix() {
-        Matrix4 viewMatrix = Matrix4();
-        viewMatrix.translate(0, 0, camera[2]);
-        return viewMatrix;
-    }
-
-    RenderTilesEnum evaluateRenderTilesCameraXType() {
-        auto xTileCamP = proportionXCamCordByCurrentExtent();
-
-        if(xTileCamP > 1 - showTilesXCordProportion) {
-            LOGI("[TILE_CAMP] xTileCamP %f SHOW_RIGHT", xTileCamP);
-            return RenderTilesEnum::SHOW_RIGHT;
-        } else {
-            LOGI("[TILE_CAMP] xTileCamP %f SHOW_LEFT", xTileCamP);
-            return RenderTilesEnum::SHOW_LEFT;
-        }
-    }
-
-    RenderTilesEnum evaluateRenderTilesCameraYType() {
-        auto yTileCamP = proportionYCamCordByCurrentExtent();
-        if(yTileCamP > 1 - showTilesXCordProportion) {
-            LOGI("[TILE_CAMP] yTileCamP %f SHOW_BOTTOM", yTileCamP);
-            return RenderTilesEnum::SHOW_BOTTOM;
-        } else {
-            LOGI("[TILE_CAMP] yTileCamP %f SHOW_TOP", yTileCamP);
-            return RenderTilesEnum::SHOW_TOP;
-        }
-    }
+    void updatePlanetGeometry();
 
     std::shared_ptr<Symbols> getSymbols() {return symbols;}
 
@@ -203,12 +162,12 @@ public:
         scaleFactorZoom = scaleFactor;
     }
 
-    void updateMapCameraZPosition() {
-        camera[2] = cameraRootZ * evaluateFloatScaleFactorFormula();
+    void updateCameraPosition() {
+        cameraCurrentDistance = cameraRootDistance * evaluateFloatScaleFactorFormula();
     }
 
     float evaluateCameraZByZoomingBorder(short zoomDiff = 0) {
-        return cameraRootZ * evaluateScaleFactorFormula(zoomDiff);
+        return cameraRootDistance * evaluateScaleFactorFormula(zoomDiff);
     }
 
     void loadTextures(AAssetManager *assetManager);
@@ -222,6 +181,7 @@ private:
     float scaleFactorZoom = 0.0f; // из MapView устанавливается
     short maxLoadTileThreads = 4;
     short loadTilesThreadsAmount = 0;
+    float cameraCurrentDistance = 0;
 
     float _lastEvaluatedScaleFloatScaleFactor;
     float _savedLastScaleStateMapZ;
@@ -233,25 +193,24 @@ private:
 
     void updateRenderTileProjection(short amountX, short amountY);
 
-    bool updateSavedLastDragXTileType() {
-        RenderTilesEnum renderTilesEnumX = evaluateRenderTilesCameraXType();
-        if(_savedDragRenderXTile != renderTilesEnumX) {
-            _savedDragRenderXTile = renderTilesEnumX;
-            return true;
-        }
-        return false;
-    }
-
-    bool updateSavedLastDragYTileType() {
-        RenderTilesEnum renderTilesEnumY = evaluateRenderTilesCameraYType();
-        if(_savedDragRenderYTile != renderTilesEnumY) {
-            _savedDragRenderYTile = renderTilesEnumY;
-            return true;
-        }
-        return false;
-    }
-
     void updateFrustum();
+
+    Eigen::Matrix4f evaluatePVM() {
+        float camX = -1 * (cameraCurrentDistance + planetRadius);
+        Eigen::Vector3f cameraPosition = Eigen::Vector3f(camX, 0, 0);
+        Eigen::AngleAxis<float> rotateMatrixUnitY =
+                Eigen::AngleAxis<float>(cameraLongitudeRad, Eigen::Vector3f(0, 1, 0));
+
+        Eigen::AngleAxis<float> rotateMatrixUnitZ =
+                Eigen::AngleAxis<float>(cameraLatitudeRad, Eigen::Vector3f(0, 0, 1));
+
+        cameraPosition = rotateMatrixUnitY * rotateMatrixUnitZ * cameraPosition;
+        Eigen::Vector3f target(0.0f, 0.0f, 0.0f);
+        Eigen::Vector3f up(0.0f, 1.0f, 0.0f);
+        Eigen::Matrix4f viewMatrix = EigenGL::createViewMatrix(cameraPosition, target, up);
+        Eigen::Matrix4f pvm = projectionMatrix * viewMatrix;
+        return pvm;
+    }
 
     float evaluateFloatScaleFactorFormula() {
         _lastEvaluatedScaleFloatScaleFactor = pow(2, mapZTileScalingRoot - scaleFactorZoom);
@@ -286,36 +245,71 @@ private:
         return DEG2RAD(getPlanetCurrentLatitude());
     }
 
-    float getPlanetCurrentLongitude(float xDeg) {
-        float result = fmod(xDeg + 180.0, 360.0);
-        if (result < 0) {
-            result += 360.0;
-        }
-        return result - 180.0;
-    }
-
     float getPlanetCurrentLongitude() {
-        return getPlanetCurrentLongitude(cameraXAngleDeg);
+        return RAD2DEG(CommonUtils::normalizeLongitudeRad(cameraLongitudeRad));
     }
 
     float getPlanetCurrentLatitude() {
-        return cameraYAngleDeg;
+        return RAD2DEG(cameraLatitudeRad);
     }
 
-    void drawPoint(Matrix4 matrix, float x, float y, float z) {
+    CornersCords evaluateCorners(Eigen::Matrix4f pvm);
+    void evaluateLatLonByIntersectionPlanes(Eigen::Vector4f firstPlane, Eigen::Vector4f secondPlane, Eigen::Matrix4f pvm, float& longitudeRad, float& latitudeRad, bool& has);
+
+    void drawPoints(Eigen::Matrix4f matrix, std::vector<float> points, float pointSize) {
+        glDisable(GL_STENCIL_TEST);
+        auto plainShader = shadersBucket.get()->plainShader;
+        const GLfloat color[] = { 1, 0, 0, 1};
+        glUseProgram(plainShader->program);
+        glUniform1f(plainShader->getPointSizeLocation(), pointSize);
+        glUniform4fv(plainShader->getColorLocation(), 1, color);
+        glUniformMatrix4fv(plainShader->getMatrixLocation(), 1, GL_FALSE, matrix.data());
+        glVertexAttribPointer(plainShader->getPosLocation(), 3, GL_FLOAT, GL_FALSE, 0, points.data());
+        glEnableVertexAttribArray(plainShader->getPosLocation());
+        glDrawArrays(GL_POINTS, 0, points.size() / 3);
+        glEnable(GL_STENCIL_TEST);
+    }
+
+    void drawPoint(Eigen::Matrix4f matrix, float x, float y, float z) {
+        glDisable(GL_DEPTH_TEST);
+        glDisable(GL_STENCIL_TEST);
         auto errorstr = CommonUtils::getGLErrorString();
         auto plainShader = shadersBucket.get()->plainShader;
         float points[] = {x, y, z};
         const GLfloat color[] = { 1, 0, 0, 1};
         glUseProgram(plainShader->program);
         glUniform4fv(plainShader->getColorLocation(), 1, color);
-        glUniformMatrix4fv(plainShader->getMatrixLocation(), 1, GL_FALSE, matrix.get());
+        glUniformMatrix4fv(plainShader->getMatrixLocation(), 1, GL_FALSE, matrix.data());
         glVertexAttribPointer(plainShader->getPosLocation(), 3, GL_FLOAT,
                               GL_FALSE, 0, points
         );
         glEnableVertexAttribArray(plainShader->getPosLocation());
         glDrawArrays(GL_POINTS, 0, 1);
         errorstr = CommonUtils::getGLErrorString();
+        glEnable(GL_DEPTH_TEST);
+        glEnable(GL_STENCIL_TEST);
+    }
+
+    void drawVerticesPlanetCoordinates(Eigen::Matrix4f pvm) {
+        //glDisable(GL_DEPTH_TEST);
+        glDisable(GL_STENCIL_TEST);
+        for(int i = 0; i < sphere.sphere_vertices.size(); i += 3) {
+            auto t = sphere.unitSquareCoordinates[i / 3 * 2];
+            auto s = sphere.unitSquareCoordinates[i / 3 * 2 + 1];
+            auto x = sphere.sphere_vertices[i];
+            auto y = sphere.sphere_vertices[i + 1];
+            auto z = sphere.sphere_vertices[i + 2];
+            Matrix4 textModelMatrix = Matrix4();
+            textModelMatrix.rotate(cameraLongitudeRad - 90, 0, -1, 0);
+            textModelMatrix.rotate(cameraLatitudeRad, 1, 0, 0);
+            textModelMatrix.translate(0, 0, -planetRadius);
+
+//            Matrix4 textMatrix = pvm * textModelMatrix;
+//            std::string text = CommonUtils::formatFloat(t) + " " + CommonUtils::formatFloat(s);
+//            symbols.get()->renderText2(text, textMatrix, x, y, z, 500);
+        }
+        //glEnable(GL_DEPTH_TEST);
+        glEnable(GL_STENCIL_TEST);
     }
 
 
@@ -325,29 +319,24 @@ private:
     std::shared_ptr<Symbols> symbols;
     int* rootTileX, *rootTileY;
 
-    Matrix4 projectionMatrix;
-    Matrix4 rendererTileProjectionMatrix;
-    Matrix4 rendererTileProjectionMatrixUI_TEST;
+    Eigen::Matrix4f projectionMatrix;
+    Eigen::Matrix4f rendererTileProjectionMatrix;
 
     const uint32_t extent = 4096;
-    float dragFingerMapSpeed = 0.00002f;
-
-    RenderTilesEnum _savedDragRenderXTile = RenderTilesEnum::ONLY_MIDDLE;
-    RenderTilesEnum _savedDragRenderYTile = RenderTilesEnum::ONLY_MIDDLE;
+    float dragFingerMapSpeed = 0.0000002f;
 
     std::vector<TileCords> currentVisibleTiles = {};
 
 
     Sphere sphere = Sphere();
     float planetRadius;
-    float degLatitudeCameraConstraint = 70;
+    float latitudeCameraAngleRadConstraint = M_PI / 2 - M_PI / 100;
     std::vector<TileCords> toShowTilesQueue = {};
     float showTilesXCordProportion;
     float fovy;
-    float cameraRootZ;
-    float camera[3] = {};
-    float cameraYAngleDeg = 0;
-    float cameraXAngleDeg = 0;
+    float cameraRootDistance;
+    float cameraLatitudeRad = 0;
+    float cameraLongitudeRad = 0;
     int screenW, screenH;
 
     float renderXDiffSize = 0;
@@ -357,7 +346,6 @@ private:
     TilesStorage tilesStorage = TilesStorage(cache);
     static const short rendererTilesSize = 30;
     TileForRenderer tilesForRenderer[rendererTilesSize] = {};
-    std::vector<float> cord_tiles[rendererTilesSize] = {};
 
     GLuint renderTexture[rendererTilesSize] = {};
     GLuint frameBuffer;

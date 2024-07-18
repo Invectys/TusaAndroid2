@@ -19,8 +19,24 @@
 
 class CommonUtils {
 public:
+    static float clamp(float n, float lower, float upper) {
+        return std::max(lower, std::min(n, upper));
+    }
+
     static void printGlError() {
         LOGI("Open gl error %s", getGLErrorString().c_str());
+    }
+
+    static bool compareFloats(float a, float b, float epsilon = 1e-5) {
+        return std::fabs(a - b) < epsilon;
+    }
+
+    static float normalizeLongitudeRad(float rad) {
+        float result = fmod(rad + M_PI, 2 * M_PI);
+        if (result < 0) {
+            result += 2 * M_PI;
+        }
+        return result - M_PI;
     }
 
     static void extractPlanesFromProjMat(
@@ -79,6 +95,12 @@ public:
             case GL_INVALID_FRAMEBUFFER_OPERATION: return "GL_INVALID_FRAMEBUFFER_OPERATION";
             default: return "UNKNOWN_ERROR";
         }
+    }
+
+    static std::string formatFloat(float value) {
+        char buffer[10]; // Buffer to hold the formatted string
+        std::snprintf(buffer, sizeof(buffer), "%.1f", value); // Format the float to one decimal place
+        return std::string(buffer); // Convert to std::string and return
     }
 
     // преобразует угол в радианах в позицию от 0 до 1 сферы

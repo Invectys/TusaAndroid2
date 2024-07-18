@@ -20,15 +20,15 @@ uniform float u_endY;
 varying vec2 v_tile_cords_unit_square;
 
 void main() {
-    float shifted_planet_x = v_tile_cords_unit_square.x + u_shiftX;
 
     float xStartBorder = u_startX;
     float xEndBorder = u_endX;
     float yStartBorder = u_startY;
     float yEndBorder = u_endY;
 
-    float xTile = (shifted_planet_x - xStartBorder) / (xEndBorder - xStartBorder);
-    float yTile = (v_tile_cords_unit_square.y - yStartBorder) / (yEndBorder - yStartBorder);
+    // в координатах планеты
+    float xTile = (v_tile_cords_unit_square.x - xStartBorder) / (xEndBorder - xStartBorder);
+    float yTile = ((1.0 - v_tile_cords_unit_square.y - yStartBorder) / (yEndBorder - yStartBorder));
 
-    gl_FragColor = texture2D(u_tile_0, vec2(xTile, yTile));
+    gl_FragColor = texture2D(u_tile_0, vec2(xTile, 1.0 - yTile));
 }

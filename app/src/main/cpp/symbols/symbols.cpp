@@ -156,3 +156,76 @@ void Symbols::renderText(std::string text, float x, float y, Matrix4 translate, 
 Symbols::Symbols(std::shared_ptr<ShadersBucket> shadersBucket): shadersBucket(shadersBucket){
 
 }
+
+void
+Symbols::renderText2(std::string text, Matrix4 m, float x, float y, float z, float symbolScale) {
+    std::vector<std::tuple<Symbol, float, float, float>> forRender {};
+
+    float textWidth = 0;
+    float sumHeight = 0;
+    std::string::const_iterator iterator;
+    for(iterator = text.begin(); iterator != text.end(); iterator++) {
+        auto symbol = getSymbol(*iterator);
+
+        float w = symbol.width * symbolScale;
+        float h = symbol.rows * symbolScale;
+
+        float xPixelsShift = (symbol.advance >> 6) * symbolScale;
+        textWidth += xPixelsShift;
+        sumHeight += h;
+
+        forRender.push_back({symbol, w, h, xPixelsShift});
+    }
+
+    float averageHeight = sumHeight / text.length();
+    x = x - textWidth / 2;
+    y -= averageHeight / 2;
+
+    auto symbolShader = shadersBucket->symbolShader;
+    glUseProgram(symbolShader->program);
+
+    for(auto& charRender : forRender) {
+        Symbol symbol = std::get<0>(charRender);
+        unsigned int textureId = symbol.textureId;
+        float w = std::get<1>(charRender);
+        float h = std::get<2>(charRender);
+        float pixelsShift = std::get<3>(charRender);
+
+        float xPos = x + symbol.bitmapLeft * symbolScale;
+        float yPos = y - (symbol.rows - symbol.bitmapTop ) * symbolScale;
+
+        float points[] = {
+                xPos, (yPos + h), z,
+                xPos, yPos, z,
+                xPos + w, yPos, z,
+                xPos + w, (yPos + h), z
+        };
+
+        GLfloat textureCords[] = {
+                0.0f, 0.0f,
+                0.0f, 1.0f,
+                1.0f, 1.0f,
+                1.0f, 0.0f
+        };
+
+        unsigned int indices[6] = {
+                2, 3, 0,
+                0, 1, 2
+        };
+
+        glUniformMatrix4fv(symbolShader->getMatrixLocation(), 1, GL_FALSE, m.get());
+        glBindTexture(GL_TEXTURE_2D, textureId);
+
+        glUniform1i(symbolShader->getTextureLocation(), 0);
+
+        glVertexAttribPointer(symbolShader->getTextureCord(), 2, GL_FLOAT, GL_FALSE, 0, textureCords);
+        glEnableVertexAttribArray(symbolShader->getTextureCord());
+
+        glVertexAttribPointer(symbolShader->getPosLocation(), 3, GL_FLOAT, GL_FALSE, 0, points);
+        glEnableVertexAttribArray(symbolShader->getPosLocation());
+        glUniform4f(symbolShader->getColorLocation(), 1.0, 0.0, 0.0f, 1.0f);
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, indices);
+
+        x += pixelsShift;
+    }
+}
