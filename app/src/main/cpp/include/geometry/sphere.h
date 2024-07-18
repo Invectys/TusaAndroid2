@@ -23,10 +23,10 @@ public:
 
     void generateSphereData5(int stackCount, int sectorCount,
                              float radius,
-                             float centerLatitudeRad,
-                             float centerLongitudeRad,
-                             float fromCenterLongitudeDeltaRad,
-                             float fromCenterLatitudeDeltaRad
+                             double centerLatitudeRad,
+                             double centerLongitudeRad,
+                             double fromCenterLongitudeDeltaRad,
+                             double fromCenterLatitudeDeltaRad
     ) {
         // clear memory of prev arrays
         std::vector<float>().swap(sphere_vertices);
@@ -34,8 +34,8 @@ public:
         std::vector<float>().swap(normals);
         std::vector<float>().swap(unitSquareCoordinates);
 
-        float sectorStep = 2 * fromCenterLongitudeDeltaRad / sectorCount; // Один шаг по longitude
-        float stackStep =  2 * fromCenterLatitudeDeltaRad / stackCount; // Один шаг по latitude
+        double sectorStep = 2.0 * fromCenterLongitudeDeltaRad / sectorCount; // Один шаг по longitude
+        double stackStep =  2.0 * fromCenterLatitudeDeltaRad / stackCount; // Один шаг по latitude
 
         centerLongitudeRad = ((int)(centerLongitudeRad / sectorStep) * sectorStep);
         centerLatitudeRad = ((int)(centerLatitudeRad / stackStep) * stackStep);
@@ -48,8 +48,8 @@ public:
         int seamIndex = -1;
 
         for(int stackIndex = 0; stackIndex <= stackCount; stackIndex++) {
-            float stackRad = CommonUtils::clamp(centerLatitudeRad - fromCenterLatitudeDeltaRad + stackStep * stackIndex, -M_PI / 2, M_PI / 2); // текущий latitude
-            float latitude = stackRad; //    - PI / 2 to PI / 2
+            double stackRad = CommonUtils::clamp(centerLatitudeRad - fromCenterLatitudeDeltaRad + stackStep * stackIndex, -M_PI / 2, M_PI / 2); // текущий latitude
+            double latitude = stackRad; //    - PI / 2 to PI / 2
 
             // Это верхняя или нижняя точка
             bool isBottomPoint = stackIndex == 0 && latitude == -M_PI / 2;
@@ -62,7 +62,7 @@ public:
 
             //float previousSectorRad = std::numeric_limits<float>::lowest();
             for(int sectorIndex = 0; sectorIndex <= sectorCount; sectorIndex++) {
-                float sectorRad = CommonUtils::normalizeLongitudeRad(centerLongitudeRad - fromCenterLongitudeDeltaRad + sectorStep * sectorIndex) + M_PI;
+                double sectorRad = CommonUtils::normalizeLongitudeRad(centerLongitudeRad - fromCenterLongitudeDeltaRad + sectorStep * sectorIndex) + M_PI;
 
                 float y = radius * sinf(stackRad);
                 float x = radius * cosf(stackRad) * cosf(sectorRad);
@@ -92,7 +92,7 @@ public:
                     sphere_vertices.push_back(y);
                     sphere_vertices.push_back(z);
 
-                    float t = CommonUtils::clamp(1 - sectorRad / (2.0 * M_PI), 0.0, 1.0); // координата текстуры вдоль longitude
+                    float t = CommonUtils::clampf(1 - sectorRad / (2.0 * M_PI), 0.0, 1.0); // координата текстуры вдоль longitude
                     unitSquareCoordinates.push_back(t);
                     unitSquareCoordinates.push_back(s);
                 }

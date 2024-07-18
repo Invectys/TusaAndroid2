@@ -17,8 +17,6 @@ void Map::onSurfaceCreated(AAssetManager *assetManager) {
 
 void Map::onSurfaceChanged(int w, int h) {
     renderer.onSurfaceChanged(w, h);
-
-    glViewport(0, 0, w, h);
 }
 
 void Map::render() {

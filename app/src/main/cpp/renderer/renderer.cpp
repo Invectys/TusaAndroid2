@@ -38,9 +38,6 @@ Renderer::Renderer(
     renderTileCoordinates = std::shared_ptr<RenderTileCoordinates>(new RenderTileCoordinates(shadersBucket, symbols));
 }
 
-float size = 0;
-float add__ = 0;
-
 void Renderer::renderFrame() {
 
     //evaluateTilesPositionsMutex.lock();
@@ -52,7 +49,7 @@ void Renderer::renderFrame() {
 
     std::set<short> possibleDeltasSet = {};
     std::vector<short> possibleDeltasVec = {};
-    for(short renderTile = 0; renderTile < rendererTilesSize; renderTile++) {
+    for(short renderTile = 0; renderTile < tilesForRenderMaxSize; renderTile++) {
         TileForRenderer visibleTile = tilesForRenderer[0];
         if(visibleTile.isEmpty())
             continue;
@@ -61,23 +58,23 @@ void Renderer::renderFrame() {
         }
     }
 
-//    Eigen::Matrix4f viewMatrixTexture = EigenGL::createViewMatrix(
-//            Eigen::Vector3f(0, 0, -1),
-//            Eigen::Vector3f(0, 0, 0),
-//            Eigen::Vector3f(0, 1, 0)
-//    );
     Eigen::Matrix4f viewMatrixTexture = Eigen::Matrix4f::Identity();
     Eigen::Affine3f viewTranslation(Eigen::Translation3f(0, 0, -1));
     viewMatrixTexture *= viewTranslation.matrix();
     Eigen::Matrix4f pvmTexture = rendererTileProjectionMatrix * viewMatrixTexture;
 
-    GLuint renderTextureCurrent = renderTexture[0];
-    if(!RENDER_TILE_PALLET_TEST) {
-        glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, renderTextureCurrent, 0);
-        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthBuffer);
+    if (!RENDER_TILE_PALLET_TEST) {
+        glBindTexture(GL_TEXTURE_2D, renderMapTexture);
+//        float mapTextureResolutionScale = 1;
+//        float resultMapTextureWidth = mapTextureResolutionScale * renderMapTextureWidth;
+//        float resultMapTextureHeight = mapTextureResolutionScale * renderMapTextureHeight;
+//        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, resultMapTextureWidth , resultMapTextureHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
+        glBindFramebuffer(GL_FRAMEBUFFER, renderMapFrameBuffer);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, renderMapTexture, 0);
+        //glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, resultMapTextureWidth, resultMapTextureHeight);
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, renderMapDepthBuffer);
+        glViewport(0, 0, renderMapTextureWidth, renderMapTextureHeight);
     }
-
 
     glStencilMask(0xFF);
     glClearColor((float)242 / 255, (float)248 / 255, (float)230 / 255, 1.0f);
@@ -92,7 +89,7 @@ void Renderer::renderFrame() {
         short reserved = 1;
         for(short zDelta : possibleDeltasVec) {
             for(short geometryHeapIndex = 0; geometryHeapIndex < Style::maxGeometryHeaps + reserved; ++geometryHeapIndex) {
-                for(short renderTileIndex = 0; renderTileIndex < rendererTilesSize; renderTileIndex++) {
+                for(short renderTileIndex = 0; renderTileIndex < tilesForRenderMaxSize; renderTileIndex++) {
                     TileForRenderer visibleTile = tilesForRenderer[renderTileIndex];
                     if(visibleTile.isEmpty() || visibleTile.zDeltaFlag != zDelta)
                         continue;
@@ -100,7 +97,7 @@ void Renderer::renderFrame() {
                     short deltaX = visibleTile.rPosX;
                     short deltaY = visibleTile.rPosY;
 
-                    short shift = 4096;
+                    short shift = extent;
                     Eigen::Affine3f modelTranslation(Eigen::Translation3f(shift * deltaX, -1 * shift * deltaY, 0));
                     Eigen::Matrix4f forTileMatrix = pvmTexture * modelTranslation.matrix();
                     glUniformMatrix4fv(plainShader->getMatrixLocation(), 1, GL_FALSE, forTileMatrix.data());
@@ -174,25 +171,7 @@ void Renderer::renderFrame() {
         }
     }
 
-//    if(visibleTileRenderMode == VisibleTileRenderMode::TILE_COORDINATES) {
-//        for(short renderTileIndex = 0; renderTileIndex < rendererTilesSize; renderTileIndex++) {
-//            TileForRenderer visibleTile = tilesForRenderer[renderTileIndex];
-//            if (visibleTile.isEmpty())
-//                continue;
-//
-//            short deltaX = visibleTile.tileX - *rootTileX;
-//            short deltaY = visibleTile.tileY - *rootTileY;
-//
-//
-//
-//            short shift = 4096;
-//            Matrix4 model = Matrix4();
-//            model.translate(shift * deltaX, -1 * shift * deltaY, 0);
-//            Matrix4 forTileMatrix = pvmTexture * model;
-//
-//            renderTileCoordinatesPtr->render(forTileMatrix, visibleTile, 4096, 50);
-//        }
-//    }
+    glViewPortDefaultSize();
 
     if (!RENDER_TILE_PALLET_TEST) {
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -202,39 +181,6 @@ void Renderer::renderFrame() {
 
         drawPlanet();
     }
-
-
-    // рендрить тестовую плоскость с отрендринными тайлами
-//    if (!RENDER_TILE_PALLET_TEST && true) {
-//        Matrix4 pvmTextureUI_TEST = rendererTileProjectionMatrixUI_TEST * viewMatrixTexture;
-//        glUseProgram(planetShader->program);
-//        float points[] = {
-//                0.0f, 0.0f,
-//                4096.0f, 0.0f,
-//                4096.0f, -4096.0f,
-//                0.0f, -4096.0f
-//        };
-//        float texCords[] = {
-//                0, 1,
-//                1, 1,
-//                1, 0,
-//                0, 0
-//        };
-//        glBindTexture(GL_TEXTURE_2D, renderTexture[0]);
-//        glUniform1i(planetShader->getTileTextureLocation0(), 0);
-//        glUniformMatrix4fv(planetShader->getMatrixLocation(), 1, GL_FALSE, pvmTextureUI_TEST.get());
-//        glVertexAttribPointer(planetShader->getPosLocation(), 2, GL_FLOAT, GL_FALSE, 0, points);
-//        glEnableVertexAttribArray(planetShader->getPosLocation());
-//        glVertexAttribPointer(planetShader->getUnitSquareCoordinates(), 2, GL_FLOAT, GL_FALSE, 0, texCords);
-//        glEnableVertexAttribArray(planetShader->getUnitSquareCoordinates());
-//        unsigned short indices[] = {
-//                0, 3, 1,
-//                1, 3, 2
-//        };
-//        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, indices);
-//    }
-//    CommonUtils::printGlError();
-
 
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> duration = end - start;
@@ -255,28 +201,11 @@ void Renderer::drawPlanet() {
     int n = pow(2, topLeftVisibleCord.tileZ);
     float tileP = 1.0 / n;
 
-    float xStartBorder = 0;
-    float xEndBorder = 1;
-    float yStartBorder = 0;
-    float yEndBorder = 1;
+    float xStartBorder = topLeftVisibleCord.tileX * tileP;
+    float xEndBorder = tileP * renderMapXTilesCount + xStartBorder;
+    float yStartBorder = topLeftVisibleCord.tileY * tileP;
+    float yEndBorder = tileP * renderMapYTilesCount + yStartBorder;
 
-    xStartBorder = topLeftVisibleCord.tileX * tileP;
-    yStartBorder = topLeftVisibleCord.tileY * tileP;
-
-//    xStartBorder = topLeftVisibleCord.xComponent;
-//    yStartBorder = topLeftVisibleCord.yComponent;
-
-    xEndBorder = tileP * renderXDiffSize + xStartBorder;
-    yEndBorder = tileP * renderYDiffSize + yStartBorder;
-
-//    xEndBorder = bottomRightVisibleCord.xComponent;
-//    yEndBorder = bottomRightVisibleCord.yComponent;
-
-    float shiftX = topLeftVisibleCord.xNormalized * tileP;
-    float shiftY = topLeftVisibleCord.yNormalized * tileP;
-
-    glUniform1f(planetShader->getShiftX(), shiftX);
-    glUniform1f(planetShader->getShiftY(), shiftY);
     glUniform1f(planetShader->getStartX(), xStartBorder);
     glUniform1f(planetShader->getEndX(),   xEndBorder);
     glUniform1f(planetShader->getStartY(), yStartBorder);
@@ -290,23 +219,12 @@ void Renderer::drawPlanet() {
     glVertexAttribPointer(planetShader->getPosLocation(), 3, GL_FLOAT, GL_FALSE, 0, sphere.sphere_vertices.data());
     glEnableVertexAttribArray(planetShader->getPosLocation());
 
-
-//    int d = GL_TEXTURE0;
-//    int activeTextureUnit = d + 0;
-//    glActiveTexture(activeTextureUnit);
-    glBindTexture(GL_TEXTURE_2D, renderTexture[0]);
+    glBindTexture(GL_TEXTURE_2D, renderMapTexture);
     glUniform1i(planetShader->getTileTextureLocation0(), 0);
-//    glVertexAttribPointer(planetShader->getTileTextureCoordinate(0), 2, GL_FLOAT, GL_FALSE, 0, cord_tiles[0].data());
-//    glEnableVertexAttribArray(planetShader->getTileTextureCoordinate(0));
-
-    //glDrawElements(GL_LINE_LOOP, sphere.sphere_indices.size(), GL_UNSIGNED_INT, sphere.sphere_indices.data());
     glDrawElements(GL_TRIANGLES, sphere.sphere_indices.size(), GL_UNSIGNED_INT, sphere.sphere_indices.data());
-    //CommonUtils::printGlError();
 
-    //auto borders = evaluateBordersLonLat();
-    //LOGI("Borders lon(%f) lat(%f)", borders.leftCenterLon, borders.topCenterLat);
-
-    drawPoints(pvm, sphere.sphere_vertices, 7.0f);
+    //drawPoints(pvm, sphere.sphere_vertices, 7.0f);
+    drawPoint(pvm, 0, 0, 0, 10.0f);
 
     regeneratePlanetGeometryMutex.unlock();
 }
@@ -315,21 +233,19 @@ void Renderer::drawPlanet() {
 void Renderer::onSurfaceChanged(int w, int h) {
     screenW = w;
     screenH = h;
+    glViewPortDefaultSize();
     updateFrustum();
     updateVisibleTiles();
 
-    for(short renderTextureIndex = 0; renderTextureIndex < rendererTilesSize; renderTextureIndex++) {
-        GLuint renderTexturePtr = renderTexture[renderTextureIndex];
-        glBindTexture(GL_TEXTURE_2D, renderTexturePtr);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, screenW, screenH, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    }
+    glBindTexture(GL_TEXTURE_2D, renderMapTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, renderMapTextureWidth, renderMapTextureHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-    glBindRenderbuffer(GL_RENDERBUFFER, depthBuffer);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, screenW, screenH);
+    glBindRenderbuffer(GL_RENDERBUFFER, renderMapDepthBuffer);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, renderMapTextureWidth, renderMapTextureHeight);
 }
 
 void Renderer::updateVisibleTiles() {
@@ -373,8 +289,8 @@ void Renderer::updateVisibleTiles() {
         }
     }
 
-    renderXDiffSize = (int) rightBottom_xTile - (int) leftTop_xTile + 1;
-    renderYDiffSize = (int) rightBottom_yTile - (int) leftTop_yTile + 1;
+    int renderXDiffSize = (int) rightBottom_xTile - (int) leftTop_xTile + 1;
+    int renderYDiffSize = (int) rightBottom_yTile - (int) leftTop_yTile + 1;
     updateRenderTileProjection(renderXDiffSize, renderYDiffSize);
     topLeftVisibleCord = getClearTileCord(leftTop_xTile, leftTop_yTile, z, 0 ,0);
     topLeftVisibleCord.xComponent = leftTop_x;
@@ -390,7 +306,6 @@ void Renderer::updateVisibleTiles() {
     bottomRightVisibleCord.latitudeRad = corners.rightBottomLatitudeRad;
     bottomRightVisibleCord.hasLatitudeAndLongitudeRad = corners.hasRightBottom;
 
-    //updatePlanetGeometry();
     // end_updateVisibleTiles
 
     std::ostringstream oss;
@@ -421,19 +336,12 @@ void Renderer::drag(float dx, float dy) {
     updatePlanetGeometry();
     bool needUpdateVisibleTiles = false;
 
-    if(rootTileXEv != *rootTileX || rootTileYEv != *rootTileY) {
-        updateRootTile();
-        needUpdateVisibleTiles = true;
-    }
-
 //    if(needUpdateVisibleTiles) {
 //        updateVisibleTiles();
 //    }
 }
 
 void Renderer::scale(float factor) {
-//    if (factor < 2.354237)
-//        factor = 2.354237;
     LOGI("Factor %f", factor);
     updateMapZoomScaleFactor(factor); // обновляет текущий скейл, паарметр скейла
     LOGI("Scale factor %f", scaleFactorZoom);
@@ -444,7 +352,6 @@ void Renderer::scale(float factor) {
         renderTileGeometry.scaleZCordDrawHeapsDiff(evaluateScaleFactorFormula());
 
         updateFrustum();
-        updateRootTile();
         updateVisibleTiles();
         _savedLastScaleStateMapZ = currentMapZTile();
         LOGI("New Z of map %d", currentMapZTile());
@@ -452,25 +359,9 @@ void Renderer::scale(float factor) {
     }
 }
 
-int state = 0;
 void Renderer::doubleTap() {
-//    RENDER_TILE_PALLET_TEST = !RENDER_TILE_PALLET_TEST;
-    DEBUG = !DEBUG;
-//    if (state % 2 == 0) {
-//        RENDER_TILE_PALLET_TEST = !RENDER_TILE_PALLET_TEST;
-//    }
-//    if (state % 2 == 1) {
-//        UPDATE_VISIBLE_TILES = !UPDATE_VISIBLE_TILES;
-//        RENDER_TILE_PALLET_TEST = false;
-//    }
-//    state += 1;
-
-//    rendererTileProjectionMatrixUI_TEST = setOrthoFrustum(0, 4096 * 2, -4096 * 2, 0, 0.1, 100);
-//    if(visibleTileRenderMode == VisibleTileRenderMode::TILE_COORDINATES) {
-//        visibleTileRenderMode = VisibleTileRenderMode::TILE;
-//    } else if(visibleTileRenderMode == VisibleTileRenderMode::TILE) {
-//        visibleTileRenderMode = VisibleTileRenderMode::TILE_COORDINATES;
-//    }
+    RENDER_TILE_PALLET_TEST = !RENDER_TILE_PALLET_TEST;
+    //DEBUG = !DEBUG;
 }
 
 void Renderer::loadAndRenderCurrentVisibleTiles() {
@@ -536,43 +427,8 @@ void Renderer::loadAndRender(TileCords rtc) {
         return;
     }
 
-
-
-//    bool inserted = false;
-//    for(short i = 0; i < rendererTilesSize; ++i) {
-//        auto& tileForR = tilesForRenderer[i];
-//        if(tileForR.isEmpty() && !inserted) {
-//            tileForR = needToInsertTile;
-//            inserted = true;
-//        }
-//
-//        // отображаться в первую очередь будут те тайлы
-//        // что в массиве tilesForRenderer на первом месте
-//        needToInsertTile.zDeltaFlag = currentMapZTile() - needToInsertTile.tileZ;
-//        tileForR.zDeltaFlag = currentMapZTile() - tileForR.tileZ;
-//
-//        // если актуальный большой тайл закрывает маленький неактульный
-//        if(needToInsertTile.zDeltaFlag == 0 && tileForR.zDeltaFlag != 0 && needToInsertTile.cover(tileForR)) {
-//            tileForR.clear();
-//            if(!inserted) {
-//                tilesForRenderer[i] = needToInsertTile;
-//                inserted = true;
-//            }
-//            continue;
-//        }
-//
-//        // рисуем первым все то что ближе к текущему зуму
-//        if(abs(needToInsertTile.zDeltaFlag) <= abs(tileForR.zDeltaFlag) && !inserted) {
-//            for(short i1 = rendererTilesSize - 2; i1 >= i; --i1) {
-//                tilesForRenderer[i1 + 1] = tilesForRenderer[i1];
-//            }
-//            tilesForRenderer[i] = needToInsertTile;
-//            inserted = true;
-//        }
-//    }
-
     // удалить все то что не того Z
-    for(short renderTileIndex = 0; renderTileIndex < rendererTilesSize; renderTileIndex++) {
+    for(short renderTileIndex = 0; renderTileIndex < tilesForRenderMaxSize; renderTileIndex++) {
         auto& tileForR = tilesForRenderer[renderTileIndex];
         if(tileForR.tileZ != currentMapZTile()) {
             tilesForRenderer[renderTileIndex].clear();
@@ -581,7 +437,7 @@ void Renderer::loadAndRender(TileCords rtc) {
 
     // тайл уже добавлен
     bool exist = false;
-    for(short renderTileIndex = 0; renderTileIndex < rendererTilesSize; renderTileIndex++) {
+    for(short renderTileIndex = 0; renderTileIndex < tilesForRenderMaxSize; renderTileIndex++) {
         auto& tileForR = tilesForRenderer[renderTileIndex];
         if(tileForR.isEmpty())
             continue;
@@ -592,7 +448,7 @@ void Renderer::loadAndRender(TileCords rtc) {
 
     if (!exist) {
         short insertedIndex = -1;
-        for(short renderTileIndex = 0; renderTileIndex < rendererTilesSize; renderTileIndex++) {
+        for(short renderTileIndex = 0; renderTileIndex < tilesForRenderMaxSize; renderTileIndex++) {
             auto& tileForR = tilesForRenderer[renderTileIndex];
             if(tileForR.isEmpty() || tileForR.tileZ != currentMapZTile()) {
                 tilesForRenderer[renderTileIndex] = needToInsertTile;
@@ -606,52 +462,6 @@ void Renderer::loadAndRender(TileCords rtc) {
     //evaluateTilesPositionsMutex.unlock();
     loadTilesThreadsAmount--;
     LOGI("Load and render thread finished. Current threads amount: %d", loadTilesThreadsAmount);
-}
-
-TileCords Renderer::evaluateTileCords(int dX, int dY) {
-    int tileXShift = *rootTileX + dX;
-    int tileYShift = *rootTileY + dY;
-    int tileX_n = tileXShift;
-    int tileY_n = tileYShift;
-    int tileLastIndex = pow(2, currentMapZTile()) - 1;
-
-    short xNormalized = 0;
-    short yNormalized = 0;
-
-    if (tileXShift > tileLastIndex) {
-        xNormalized = 1;
-        tileX_n = 0;
-    }
-
-    if (tileXShift < 0) {
-        xNormalized = -1;
-        tileX_n = tileLastIndex;
-    }
-
-    if (tileYShift > tileLastIndex) {
-        tileY_n = 0;
-        yNormalized = 1;
-    }
-
-    if(tileYShift < 0) {
-        tileY_n = tileLastIndex;
-        yNormalized = -1;
-    }
-
-    //LOGI("Use mapZTileCordCurrent (evaluateTileCords) %d", mapZTile);
-    //LOGI("tile dx dy %hd %hd, x y %hd %hd, mapZTileCordCurrent %hd", dX, dY, tileX_n, tileY_n, mapZTile);
-    //renderTiles(mapZTile, tileX, tileY, tileX_n, tileY_n);
-    return TileCords {
-              tileXShift,
-              tileYShift,
-        tileX_n,
-        tileY_n,
-        currentMapZTile(),
-        xNormalized,
-        yNormalized,
-        0,
-        0
-    };
 }
 
 void Renderer::loadAssets(AAssetManager *assetManager) {
@@ -715,17 +525,14 @@ void Renderer::onSurfaceCreated(AAssetManager *assetManager) {
     glEnable(GL_STENCIL_TEST);
     updatePlanetGeometry();
 
-//    glGenBuffers(1, &sphereVBO);
-//    glBindBuffer(GL_ARRAY_BUFFER, sphereVBO);
-//    glBufferData(GL_ARRAY_BUFFER, sphere.sphere_vertices.size() * sizeof(float), sphere.sphere_vertices.data(), GL_STATIC_DRAW);
-//    glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-    glGenFramebuffers(1, &frameBuffer);
-    glGenRenderbuffers(1, &depthBuffer);
-    glGenTextures(rendererTilesSize, renderTexture);
+    glGenFramebuffers(1, &renderMapFrameBuffer);
+    glGenRenderbuffers(1, &renderMapDepthBuffer);
+    glGenTextures(1, &renderMapTexture);
 }
 
 void Renderer::updateRenderTileProjection(short amountX, short amountY) {
+    renderMapXTilesCount = amountX;
+    renderMapYTilesCount = amountY;
     rendererTileProjectionMatrix = EigenGL::createOrthoMatrix(0, 4096 * amountX, -4096 * amountY, 0, 0.1, 100);
 }
 
@@ -744,7 +551,6 @@ CornersCords Renderer::evaluateCorners(Eigen::Matrix4f pvm) {
     float bottomRightLatitudeRad = 0;
     bool hasBottomRight = false;
     evaluateLatLonByIntersectionPlanes(rightPlane, bottomPlane, pvm, bottomRightLongitudeRad, bottomRightLatitudeRad, hasBottomRight);
-    drawPoint(pvm, 0, 0, 0);
 
     return CornersCords {
             topLeftLongitudeRad,
@@ -802,7 +608,6 @@ void Renderer::evaluateLatLonByIntersectionPlanes(
         float xi2 = x0 + a * t2;
         float yi2 = y0 + b * t2;
         float zi2 = z0 + c * t2;
-        drawPoint(pvm, xi2, yi2, zi2);
 
         longitudeRad = atan2(xi2, zi2) + M_PI / 2;
         longitudeRad = CommonUtils::normalizeLongitudeRad(longitudeRad);
@@ -821,8 +626,8 @@ void Renderer::evaluateLatLonByIntersectionPlanes(
 void Renderer::updatePlanetGeometry() {
     regeneratePlanetGeometryMutex.lock();
 
-    float longitudeDelta = M_PI;
-    float latitudeDelta = M_PI / 2;
+    double longitudeDelta = M_PI;
+    double latitudeDelta = M_PI / 2;
     if (topLeftVisibleCord.hasLatitudeAndLongitudeRad && bottomRightVisibleCord.hasLatitudeAndLongitudeRad) {
         longitudeDelta = abs(bottomRightVisibleCord.longitudeRad - topLeftVisibleCord.longitudeRad);
         latitudeDelta = abs(bottomRightVisibleCord.latitudeRad - topLeftVisibleCord.latitudeRad);

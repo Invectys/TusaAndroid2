@@ -7,10 +7,6 @@ uniform float yTopLeft;
 uniform float xBottomRight;
 uniform float yBottomRight;
 
-uniform float u_zoom;
-uniform float u_shiftX;
-uniform float u_shiftY;
-
 uniform float u_startX;
 uniform float u_endX;
 

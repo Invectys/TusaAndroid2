@@ -31,10 +31,8 @@
 class Renderer {
 public:
     Renderer(std::shared_ptr<ShadersBucket> shadersBucket, Cache* cache);
-    ~Renderer() {
-        delete rootTileX;
-        delete rootTileY;
-    }
+    ~Renderer() {}
+
 
     bool RENDER_TILE_PALLET_TEST = false;
 
@@ -45,18 +43,6 @@ public:
     void drag(float dx, float dy);
     void scale(float scaleFactor);
     void doubleTap();
-
-    float proportionXCamCordByCurrentExtent() {
-        float x = evaluateXTileNMultiplyX();
-        float proportion = CommonUtils::fract(x);
-        return proportion;
-    }
-
-    float proportionYCamCordByCurrentExtent() {
-        float y = evaluateYTileNMultiplyY();
-        float proportion = CommonUtils::fract(y);
-        return proportion;
-    }
 
     float evaluateN() {
         return pow(2, currentMapZTile());
@@ -120,20 +106,12 @@ public:
         return yTile;
     }
 
-    void updateRootTile() {
-        *rootTileX = evaluateRootTileDiffX();
-        *rootTileY = evaluateRootTileDiffY();
-    }
 
     void setupNoOpenGLMapState(float scaleFactor, AAssetManager *assetManager) {
-        showTilesXCordProportion = 0.3;
-        rootTileX = new int(0);
-        rootTileY = new int(0);
         loadAssets(assetManager);
         cameraRootDistance = 3500;
         fovy = 65;
         updateMapZoomScaleFactor(scaleFactor);
-        //updateCordsByTiles(0, 0);
         updateCameraPosition();
         _savedLastScaleStateMapZ = currentMapZTile();
         renderTileGeometry.scaleZCordDrawHeapsDiff(evaluateScaleFactorFormula());
@@ -154,7 +132,6 @@ public:
 
     void drawPlanet();
     void loadAssets(AAssetManager *assetManager);
-    TileCords evaluateTileCords(int dX, int dY);
     void loadAndRenderCurrentVisibleTiles();
     void loadAndRender(TileCords tileCords);
 
@@ -171,9 +148,6 @@ public:
     }
 
     void loadTextures(AAssetManager *assetManager);
-
-private:
-    GLuint sphereVBO, sphereIBO;
 
 private:
     short mapZTileCordMax = 19;
@@ -270,11 +244,12 @@ private:
         glEnable(GL_STENCIL_TEST);
     }
 
-    void drawPoint(Eigen::Matrix4f matrix, float x, float y, float z) {
+    void drawPoint(Eigen::Matrix4f matrix, float x, float y, float z, float pointSize) {
         glDisable(GL_DEPTH_TEST);
         glDisable(GL_STENCIL_TEST);
-        auto errorstr = CommonUtils::getGLErrorString();
         auto plainShader = shadersBucket.get()->plainShader;
+        glUniform1f(plainShader->getPointSizeLocation(), pointSize);
+        auto errorstr = CommonUtils::getGLErrorString();
         float points[] = {x, y, z};
         const GLfloat color[] = { 1, 0, 0, 1};
         glUseProgram(plainShader->program);
@@ -312,44 +287,44 @@ private:
         glEnable(GL_STENCIL_TEST);
     }
 
+    void glViewPortDefaultSize() {
+        glViewport(0, 0, screenW, screenH);
+    }
 
     std::shared_ptr<ShadersBucket> shadersBucket;
     RenderTileGeometry renderTileGeometry;
     std::shared_ptr<RenderTileCoordinates> renderTileCoordinates;
     std::shared_ptr<Symbols> symbols;
-    int* rootTileX, *rootTileY;
 
     Eigen::Matrix4f projectionMatrix;
     Eigen::Matrix4f rendererTileProjectionMatrix;
 
     const uint32_t extent = 4096;
-    float dragFingerMapSpeed = 0.0000002f;
+    double dragFingerMapSpeed = 0.0000002;
 
     std::vector<TileCords> currentVisibleTiles = {};
 
 
     Sphere sphere = Sphere();
     float planetRadius;
-    float latitudeCameraAngleRadConstraint = M_PI / 2 - M_PI / 100;
+    double latitudeCameraAngleRadConstraint = M_PI / 2 - M_PI / 100;
     std::vector<TileCords> toShowTilesQueue = {};
-    float showTilesXCordProportion;
     float fovy;
     float cameraRootDistance;
-    float cameraLatitudeRad = 0;
-    float cameraLongitudeRad = 0;
+    double cameraLatitudeRad = 0, cameraLongitudeRad = 0;
     int screenW, screenH;
 
-    float renderXDiffSize = 0;
-    float renderYDiffSize = 0;
+    int renderMapTextureWidth = extent, renderMapTextureHeight = extent;
 
     Cache* cache;
     TilesStorage tilesStorage = TilesStorage(cache);
-    static const short rendererTilesSize = 30;
-    TileForRenderer tilesForRenderer[rendererTilesSize] = {};
+    static const short tilesForRenderMaxSize = 20;
+    TileForRenderer tilesForRenderer[tilesForRenderMaxSize] = {};
 
-    GLuint renderTexture[rendererTilesSize] = {};
-    GLuint frameBuffer;
-    GLuint depthBuffer;
+    short renderMapXTilesCount, renderMapYTilesCount;
+    GLuint renderMapTexture;
+    GLuint renderMapFrameBuffer;
+    GLuint renderMapDepthBuffer;
 };
 
 

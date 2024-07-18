@@ -19,7 +19,11 @@
 
 class CommonUtils {
 public:
-    static float clamp(float n, float lower, float upper) {
+    static double clamp(double n, double lower, double upper) {
+        return std::max(lower, std::min(n, upper));
+    }
+
+    static float clampf(float n, float lower, float upper) {
         return std::max(lower, std::min(n, upper));
     }
 
@@ -31,8 +35,8 @@ public:
         return std::fabs(a - b) < epsilon;
     }
 
-    static float normalizeLongitudeRad(float rad) {
-        float result = fmod(rad + M_PI, 2 * M_PI);
+    static double normalizeLongitudeRad(double rad) {
+        double result = fmod(rad + M_PI, 2 * M_PI);
         if (result < 0) {
             result += 2 * M_PI;
         }
@@ -108,9 +112,9 @@ public:
         float lowerStackRad = (float) DEG2RAD(-degLatitudeConstraint);
         float highStackRad = (float) DEG2RAD(degLatitudeConstraint);
         float stackRadClipped = std::max(lowerStackRad, std::min(latitudeRad, highStackRad));
-        float stackCord = (std::logf(std::tanf(stackRadClipped) + 1.0f / std::cosf(stackRadClipped)));
+        float stackCord = (std::log(std::tan(stackRadClipped) + 1.0 / std::cos(stackRadClipped)));
         float stackCord_n = 0.5 - stackCord / (2.0f * M_PI);
-        float y = std::min(std::max(0.0f, 1.0f - stackCord_n), 1.0f);
+        float y = std::min(std::max(0.0, 1.0 - stackCord_n), 1.0);
         return y;
     }
 
