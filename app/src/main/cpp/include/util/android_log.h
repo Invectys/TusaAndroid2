@@ -108,13 +108,13 @@ public:
     }
 
     // преобразует угол в радианах в позицию от 0 до 1 сферы
-    static float latitudeRadToY(float latitudeRad) {
-        float lowerStackRad = (float) DEG2RAD(-degLatitudeConstraint);
-        float highStackRad = (float) DEG2RAD(degLatitudeConstraint);
-        float stackRadClipped = std::max(lowerStackRad, std::min(latitudeRad, highStackRad));
-        float stackCord = (std::log(std::tan(stackRadClipped) + 1.0 / std::cos(stackRadClipped)));
-        float stackCord_n = 0.5 - stackCord / (2.0f * M_PI);
-        float y = std::min(std::max(0.0, 1.0 - stackCord_n), 1.0);
+    static double latitudeRadToY(double latitudeRad) {
+        double lowerStackRad = (double) DEG2RAD(-degLatitudeConstraint);
+        double highStackRad = (double) DEG2RAD(degLatitudeConstraint);
+        double stackRadClipped = std::max(lowerStackRad, std::min(latitudeRad, highStackRad));
+        double stackCord = (std::log(std::tan(stackRadClipped) + 1.0 / std::cos(stackRadClipped)));
+        double stackCord_n = 0.5 - stackCord / (2.0f * M_PI);
+        double y = std::min(std::max(0.0, 1.0 - stackCord_n), 1.0);
         return y;
     }
 

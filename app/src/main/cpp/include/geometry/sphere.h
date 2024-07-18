@@ -13,14 +13,6 @@
 
 class Sphere {
 public:
-    float degLatitudeConstraint = 85.0511f;
-
-    void generateTextureCoordinates() {
-        for(size_t i = 0; i < sphere_vertices.size(); i++) {
-            float coordinate = sphere_vertices[i];
-        }
-    }
-
     void generateSphereData5(int stackCount, int sectorCount,
                              float radius,
                              double centerLatitudeRad,
@@ -32,7 +24,7 @@ public:
         std::vector<float>().swap(sphere_vertices);
         std::vector<unsigned int>().swap(sphere_indices);
         std::vector<float>().swap(normals);
-        std::vector<float>().swap(unitSquareCoordinates);
+        std::vector<double>().swap(unitSquareCoordinates);
 
         double sectorStep = 2.0 * fromCenterLongitudeDeltaRad / sectorCount; // Один шаг по longitude
         double stackStep =  2.0 * fromCenterLatitudeDeltaRad / stackCount; // Один шаг по latitude
@@ -60,19 +52,19 @@ public:
                 upPointExists = true;
             }
 
-            //float previousSectorRad = std::numeric_limits<float>::lowest();
             for(int sectorIndex = 0; sectorIndex <= sectorCount; sectorIndex++) {
                 double sectorRad = CommonUtils::normalizeLongitudeRad(centerLongitudeRad - fromCenterLongitudeDeltaRad + sectorStep * sectorIndex) + M_PI;
 
                 float y = radius * sinf(stackRad);
                 float x = radius * cosf(stackRad) * cosf(sectorRad);
                 float z = radius * cosf(stackRad) * sinf(sectorRad);
-                float s = CommonUtils::latitudeRadToY(latitude); // это координата тексуты карты вдоль latitude
+                double s = CommonUtils::latitudeRadToY(latitude); // это координата тексуты карты вдоль latitude
 
                 float epsilon = sectorStep / 5;
                 bool isSeam = CommonUtils::compareFloats(sectorRad, 2 * M_PI, epsilon) ||
                               CommonUtils::compareFloats(sectorRad, 0, epsilon);
-                if (isSeam && sectorIndex != sectorCount) {
+
+                if (isSeam && sectorIndex != 0) {
                     seamIndex = sectorIndex;
                     sphere_vertices.push_back(x);
                     sphere_vertices.push_back(y);
@@ -92,12 +84,10 @@ public:
                     sphere_vertices.push_back(y);
                     sphere_vertices.push_back(z);
 
-                    float t = CommonUtils::clampf(1 - sectorRad / (2.0 * M_PI), 0.0, 1.0); // координата текстуры вдоль longitude
+                    double t = CommonUtils::clamp(1.0 - sectorRad / (2.0 * M_PI), 0.0, 1.0); // координата текстуры вдоль longitude
                     unitSquareCoordinates.push_back(t);
                     unitSquareCoordinates.push_back(s);
                 }
-
-
 
                 if(isUpPoint || isBottomPoint) {
                     break;
@@ -166,7 +156,7 @@ public:
 
     std::vector<float> sphere_vertices;
     std::vector<float> normals;
-    std::vector<float> unitSquareCoordinates;
+    std::vector<double> unitSquareCoordinates;
     std::vector<unsigned int> sphere_indices;
     std::vector<unsigned int> lineIndices;
 };

@@ -199,22 +199,29 @@ void Renderer::drawPlanet() {
 
     // отрендрена область размера
     int n = pow(2, topLeftVisibleCord.tileZ);
-    float tileP = 1.0 / n;
+    double tileP = 1.0 / n;
 
-    float xStartBorder = topLeftVisibleCord.tileX * tileP;
-    float xEndBorder = tileP * renderMapXTilesCount + xStartBorder;
-    float yStartBorder = topLeftVisibleCord.tileY * tileP;
-    float yEndBorder = tileP * renderMapYTilesCount + yStartBorder;
-
-    glUniform1f(planetShader->getStartX(), xStartBorder);
-    glUniform1f(planetShader->getEndX(),   xEndBorder);
-    glUniform1f(planetShader->getStartY(), yStartBorder);
-    glUniform1f(planetShader->getEndY(),   yEndBorder);
+    double xStartBorder = topLeftVisibleCord.tileX * tileP;
+    double xEndBorder = tileP * renderMapXTilesCount + xStartBorder;
+    double yStartBorder = topLeftVisibleCord.tileY * tileP;
+    double yEndBorder = tileP * renderMapYTilesCount + yStartBorder;
 
     Eigen::Matrix4f pvm = evaluatePVM();
     glUniformMatrix4fv(planetShader->getMatrixLocation(), 1, GL_FALSE, pvm.data());
 
-    glVertexAttribPointer(planetShader->getUnitSquareCoordinates(), 2, GL_FLOAT, GL_FALSE, 0, sphere.unitSquareCoordinates.data());
+    // Вычисляем координты текстуры карты планеты для вертексов
+    // в шейдере на это точности не хватает при больших зумах
+    float texCords[sphere.unitSquareCoordinates.size()];
+    for(uint i = 0; i < sphere.unitSquareCoordinates.size(); i += 2) {
+        double unitX = sphere.unitSquareCoordinates[i];
+        double unitY = sphere.unitSquareCoordinates[i + 1];
+        double xTile = (unitX - xStartBorder) / (xEndBorder - xStartBorder);
+        double yTile = ((1.0 - unitY - yStartBorder) / (yEndBorder - yStartBorder));
+        texCords[i] = xTile;
+        texCords[i + 1] = 1.0 - yTile;
+    }
+
+    glVertexAttribPointer(planetShader->getUnitSquareCoordinates(), 2, GL_FLOAT, GL_FALSE, 0, texCords);
     glEnableVertexAttribArray(planetShader->getUnitSquareCoordinates());
     glVertexAttribPointer(planetShader->getPosLocation(), 3, GL_FLOAT, GL_FALSE, 0, sphere.sphere_vertices.data());
     glEnableVertexAttribArray(planetShader->getPosLocation());
@@ -223,7 +230,7 @@ void Renderer::drawPlanet() {
     glUniform1i(planetShader->getTileTextureLocation0(), 0);
     glDrawElements(GL_TRIANGLES, sphere.sphere_indices.size(), GL_UNSIGNED_INT, sphere.sphere_indices.data());
 
-    //drawPoints(pvm, sphere.sphere_vertices, 7.0f);
+    drawPoints(pvm, sphere.sphere_vertices, 7.0f);
     drawPoint(pvm, 0, 0, 0, 10.0f);
 
     regeneratePlanetGeometryMutex.unlock();
@@ -634,7 +641,7 @@ void Renderer::updatePlanetGeometry() {
     }
 
     if (!DEBUG) {
-        sphere.generateSphereData5(30, 30,
+        sphere.generateSphereData5(16, 16,
                                    planetRadius,
                                    -cameraLatitudeRad,
                                    -cameraLongitudeRad,
