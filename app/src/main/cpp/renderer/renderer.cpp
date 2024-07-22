@@ -48,17 +48,6 @@ void Renderer::renderFrame() {
     std::shared_ptr<SymbolShader> symbolShader = shadersBucket->symbolShader;
     std::shared_ptr<PlanetShader> planetShader = shadersBucket->planetShader;
 
-    std::set<short> possibleDeltasSet = {};
-    std::vector<short> possibleDeltasVec = {};
-    for(short renderTile = 0; renderTile < tilesForRenderMaxSize; renderTile++) {
-        TileForRenderer visibleTile = tilesForRenderer[0];
-        if(visibleTile.isEmpty())
-            continue;
-        if(possibleDeltasSet.insert(visibleTile.zDeltaFlag).second) {
-            possibleDeltasVec.push_back(visibleTile.zDeltaFlag);
-        }
-    }
-
     Eigen::Matrix4f viewMatrixTexture = Eigen::Matrix4f::Identity();
     Eigen::Affine3f viewTranslation(Eigen::Translation3f(0, 0, -1));
     viewMatrixTexture *= viewTranslation.matrix();
@@ -66,13 +55,8 @@ void Renderer::renderFrame() {
 
     if (!RENDER_TILE_PALLET_TEST) {
         glBindTexture(GL_TEXTURE_2D, renderMapTexture);
-//        float mapTextureResolutionScale = 1;
-//        float resultMapTextureWidth = mapTextureResolutionScale * renderMapTextureWidth;
-//        float resultMapTextureHeight = mapTextureResolutionScale * renderMapTextureHeight;
-//        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, resultMapTextureWidth , resultMapTextureHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
         glBindFramebuffer(GL_FRAMEBUFFER, renderMapFrameBuffer);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, renderMapTexture, 0);
-        //glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, resultMapTextureWidth, resultMapTextureHeight);
         glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, renderMapDepthBuffer);
         glViewport(0, 0, renderMapTextureWidth, renderMapTextureHeight);
     }
@@ -88,99 +72,100 @@ void Renderer::renderFrame() {
     auto vt = currentVisibleTiles;
     auto renderTileCoordinatesPtr = renderTileCoordinates.get();
     if(visibleTileRenderMode == VisibleTileRenderMode::TILE) {
-        short reserved = 1;
-        for(short zDelta : possibleDeltasVec) {
-            for(short geometryHeapIndex = 0; geometryHeapIndex < Style::maxGeometryHeaps + reserved; ++geometryHeapIndex) {
-                for(short renderTileIndex = 0; renderTileIndex < tilesForRenderMaxSize; renderTileIndex++) {
-                    TileForRenderer visibleTile = tilesForRenderer[renderTileIndex];
-                    if(visibleTile.isEmpty() || visibleTile.zDeltaFlag != zDelta)
+        short reserved = 1; // для бэкграунда
+        // рендринг тайлов по слоям
+        // то есть сначала рендриться один слой всех тайлов,
+        // потом следующий слой всех тайлов
+        // это помогает избежать коллизий между тайлами
+        for(short geometryHeapIndex = 0; geometryHeapIndex < Style::maxGeometryHeaps + reserved; ++geometryHeapIndex) {
+            for(short renderTileIndex = 0; renderTileIndex < tilesForRenderMaxSize; renderTileIndex++) {
+                TileForRenderer visibleTile = tilesForRenderer[renderTileIndex];
+                if(visibleTile.isEmpty())
+                    continue;
+
+                short deltaX = visibleTile.rPosX;
+                short deltaY = visibleTile.rPosY;
+                short deltaZ = visibleTile.tileZ - currentZ;
+
+                float scale = pow(2, deltaZ);
+                short shift = extent * scale;
+                Eigen::Affine3f modelTranslation(Eigen::Translation3f(shift * deltaX, -1 * shift * deltaY, 0));
+                Eigen::Affine3f modelScale(Eigen::AlignedScaling3f(scale, scale, 0));
+                Eigen::Matrix4f forTileMatrix = pvmTexture * modelScale.matrix() * modelTranslation.matrix();
+                glUniformMatrix4fv(plainShader->getMatrixLocation(), 1, GL_FALSE, forTileMatrix.data());
+
+                Tile* tile = visibleTile.tile;
+                // Рисуем основную карту
+                if(geometryHeapIndex < Style::maxGeometryHeaps) {
+                    Geometry<float, unsigned int>& polygonsGeometry = tile->resultPolygons[geometryHeapIndex];
+                    Geometry<float, unsigned int>& linesGeometry = tile->resultLines[geometryHeapIndex];
+                    if(polygonsGeometry.isEmpty() && linesGeometry.isEmpty())
                         continue;
 
-                    short deltaX = visibleTile.rPosX;
-                    short deltaY = visibleTile.rPosY;
-                    short deltaZ = visibleTile.tileZ - currentZ;
+                    float lineWidth = tile->style.getLineWidthOfHeap(geometryHeapIndex);
+                    glLineWidth(lineWidth);
 
-                    float scale = pow(2, deltaZ);
-                    short shift = extent * scale;
-                    Eigen::Affine3f modelTranslation(Eigen::Translation3f(shift * deltaX, -1 * shift * deltaY, 0));
-                    Eigen::Affine3f modelScale(Eigen::AlignedScaling3f(scale, scale, 0));
-                    Eigen::Matrix4f forTileMatrix = pvmTexture * modelScale.matrix() * modelTranslation.matrix();
-                    glUniformMatrix4fv(plainShader->getMatrixLocation(), 1, GL_FALSE, forTileMatrix.data());
-
-                    Tile* tile = visibleTile.tile;
-                    // Рисуем основную карту
-                    if(geometryHeapIndex < Style::maxGeometryHeaps) {
-                        Geometry<float, unsigned int>& polygonsGeometry = tile->resultPolygons[geometryHeapIndex];
-                        Geometry<float, unsigned int>& linesGeometry = tile->resultLines[geometryHeapIndex];
-                        if(polygonsGeometry.isEmpty() && linesGeometry.isEmpty())
-                            continue;
-
-                        float lineWidth = tile->style.getLineWidthOfHeap(geometryHeapIndex);
-                        glLineWidth(lineWidth);
-
-                        CSSColorParser::Color colorOfStyle = tile->style.getColorOfGeometryHeap(geometryHeapIndex);
-                        GLfloat red   = static_cast<GLfloat>(colorOfStyle.r) / 255;
-                        GLfloat green = static_cast<GLfloat>(colorOfStyle.g) / 255;
-                        GLfloat blue  = static_cast<GLfloat>(colorOfStyle.b) / 255;
-                        GLfloat alpha = static_cast<GLfloat>(colorOfStyle.a);
-                        const GLfloat color[] = { red, green, blue, alpha};
-                        glUniform4fv(plainShader->getColorLocation(), 1, color);
+                    CSSColorParser::Color colorOfStyle = tile->style.getColorOfGeometryHeap(geometryHeapIndex);
+                    GLfloat red   = static_cast<GLfloat>(colorOfStyle.r) / 255;
+                    GLfloat green = static_cast<GLfloat>(colorOfStyle.g) / 255;
+                    GLfloat blue  = static_cast<GLfloat>(colorOfStyle.b) / 255;
+                    GLfloat alpha = static_cast<GLfloat>(colorOfStyle.a);
+                    const GLfloat color[] = { red, green, blue, alpha};
+                    glUniform4fv(plainShader->getColorLocation(), 1, color);
 
 
-                        if(!polygonsGeometry.isEmpty()) {
-                            glVertexAttribPointer(plainShader->getPosLocation(), 2, GL_FLOAT,
-                                                  GL_FALSE, 0, polygonsGeometry.points
-                            );
-                            glEnableVertexAttribArray(plainShader->getPosLocation());
-                            glDrawElements(GL_TRIANGLES, polygonsGeometry.indicesCount, GL_UNSIGNED_INT, polygonsGeometry.indices);
-                        }
-
-                        if(!linesGeometry.isEmpty()) {
-                            glVertexAttribPointer(plainShader->getPosLocation(), 2, GL_FLOAT,
-                                                  GL_FALSE, 0, linesGeometry.points
-                            );
-                            glEnableVertexAttribArray(plainShader->getPosLocation());
-                            glDrawElements(GL_LINES, linesGeometry.indicesCount, GL_UNSIGNED_INT, linesGeometry.indices);
-                        }
-
-                        continue;
-                    }
-
-                    // рисуем бекграунд
-                    if(geometryHeapIndex == Style::maxGeometryHeaps) {
-                        CSSColorParser::Color colorOfStyle = CSSColorParser::parse("rgb(241, 255, 230)");
-                        GLfloat red   = static_cast<GLfloat>(colorOfStyle.r) / 255;
-
-
-                        GLfloat green = static_cast<GLfloat>(colorOfStyle.g) / 255;
-                        GLfloat blue  = static_cast<GLfloat>(colorOfStyle.b) / 255;
-                        GLfloat alpha = static_cast<GLfloat>(colorOfStyle.a);
-                        const GLfloat color[] = { red, green, blue, alpha};
-                        glUniform4fv(plainShader->getColorLocation(), 1, color);
-
-                        float backPoints[] = {
-                                0, 0,
-                                (float) extent, 0,
-                                (float) extent, -(float) extent,
-                                0, 0,
-                                0, - (float) extent,
-                                (float) extent, -(float) extent,
-                        };
-
+                    if(!polygonsGeometry.isEmpty()) {
                         glVertexAttribPointer(plainShader->getPosLocation(), 2, GL_FLOAT,
-                                              GL_FALSE, 0, backPoints
+                                              GL_FALSE, 0, polygonsGeometry.points
                         );
                         glEnableVertexAttribArray(plainShader->getPosLocation());
-                        glDrawArrays(GL_TRIANGLES, 0, 6);
+                        glDrawElements(GL_TRIANGLES, polygonsGeometry.indicesCount, GL_UNSIGNED_INT, polygonsGeometry.indices);
                     }
+
+                    if(!linesGeometry.isEmpty()) {
+                        glVertexAttribPointer(plainShader->getPosLocation(), 2, GL_FLOAT,
+                                              GL_FALSE, 0, linesGeometry.points
+                        );
+                        glEnableVertexAttribArray(plainShader->getPosLocation());
+                        glDrawElements(GL_LINES, linesGeometry.indicesCount, GL_UNSIGNED_INT, linesGeometry.indices);
+                    }
+
+                    continue;
+                }
+
+                // рисуем бекграунд
+                if(geometryHeapIndex == Style::maxGeometryHeaps) {
+                    CSSColorParser::Color colorOfStyle = CSSColorParser::parse("rgb(241, 255, 230)");
+                    GLfloat red   = static_cast<GLfloat>(colorOfStyle.r) / 255;
+
+
+                    GLfloat green = static_cast<GLfloat>(colorOfStyle.g) / 255;
+                    GLfloat blue  = static_cast<GLfloat>(colorOfStyle.b) / 255;
+                    GLfloat alpha = static_cast<GLfloat>(colorOfStyle.a);
+                    const GLfloat color[] = { red, green, blue, alpha};
+                    glUniform4fv(plainShader->getColorLocation(), 1, color);
+
+                    float backPoints[] = {
+                            0, 0,
+                            (float) extent, 0,
+                            (float) extent, -(float) extent,
+                            0, 0,
+                            0, - (float) extent,
+                            (float) extent, -(float) extent,
+                    };
+
+                    glVertexAttribPointer(plainShader->getPosLocation(), 2, GL_FLOAT,
+                                          GL_FALSE, 0, backPoints
+                    );
+                    glEnableVertexAttribArray(plainShader->getPosLocation());
+                    glDrawArrays(GL_TRIANGLES, 0, 6);
                 }
             }
         }
     }
 
-    glViewPortDefaultSize();
-
     if (!RENDER_TILE_PALLET_TEST) {
+        glViewPortDefaultSize();
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
         glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
@@ -380,7 +365,7 @@ void Renderer::scale(float factor) {
 
 void Renderer::doubleTap() {
     RENDER_TILE_PALLET_TEST = !RENDER_TILE_PALLET_TEST;
-    //DEBUG = !DEBUG;
+    DEBUG = !DEBUG;
 }
 
 void Renderer::networkTilesFunction(JavaVM* gJvm, GetTileRequest* getTileRequest) {
@@ -510,7 +495,7 @@ void Renderer::loadAndRender(TileCords needToInsertCord, GetTileRequest* getTile
 
 
     // Если все нужные тайлы загружены то сносим все остальное
-    for (auto tileForRender : tilesForRenderer) {
+    for (auto& tileForRender : tilesForRenderer) {
         if (tileForRender.isEmpty())
             continue; // тайл пустой и нету смысла в проверке
         bool isCurVisible = isCurrentVisible(tileForRender.tileCords);

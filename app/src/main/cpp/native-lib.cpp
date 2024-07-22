@@ -77,7 +77,7 @@ Java_com_artem_tusaandroid_NativeLibrary_scale(JNIEnv *env, jclass clazz, jfloat
 extern "C"
 JNIEXPORT void JNICALL
 Java_com_artem_tusaandroid_NativeLibrary_doubleTap(JNIEnv *env, jclass clazz) {
-    openGl.onStop();
+    openGl.doubleTap();
 }
 
 extern "C"
