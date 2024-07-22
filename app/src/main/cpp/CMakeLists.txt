@@ -48,11 +48,9 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
         util/timer.cpp
         util/eigen_gl.cpp
 
-        network/request.cpp
+        network/get_tile_request.cpp
 
         gl/open_gl_interface.cpp
-        gl/cube_example.cpp
-        gl/triangle_example.cpp
 
         map/map.cpp
         map/tile.cpp

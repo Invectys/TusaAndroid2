@@ -7,11 +7,12 @@
 
 
 #include "tile.h"
+#include "renderer/tile_cords.h"
 
 class TileForRenderer {
 public:
     TileForRenderer(Tile* tile, int shiftX, int shiftY, int tileX, int tileY, int tileZ, float mapScaleFactor,
-                    int rPosX, int rPosY, short xNorm, short yNorm);
+                    int rPosX, int rPosY, short xNorm, short yNorm, TileCords tileCords);
     TileForRenderer();
 
     // Смещение в 3d пространстве относительно нуля по тайлам
@@ -31,29 +32,9 @@ public:
     short zDeltaFlag = 0;
 
     float mapScaleFactor;
+    bool notActual = false;
     Tile* tile = nullptr;
-
-    bool cover(TileForRenderer otherTile) {
-        int otherX = otherTile.tileX;
-        int otherY = otherTile.tileY;
-        int otherZ = otherTile.tileZ;
-
-        int extent = pow(2, 19 - tileZ);
-        int startX = tileX * extent;
-        int endX = startX + extent;
-        int startY = tileY * extent;
-        int endY = startY + extent;
-
-        int otherExtent = pow(2, 19 - otherZ);
-        int otherStartX = otherX * otherExtent;
-        int otherEndX = otherStartX + otherExtent;
-        int otherStartY = otherY * otherExtent;
-        int otherEndY = otherStartY + otherExtent;
-
-        bool xCovered = startX <= otherStartX && otherEndX <= endX;
-        bool yCovered = startY <= otherStartY && otherEndY <= endY;
-        return xCovered && yCovered;
-    }
+    TileCords tileCords;
 
     std::string toString() {
         return "(" + std::to_string(tileX) + ", " + std::to_string(tileY) + ", " + std::to_string(tileZ) + ")"

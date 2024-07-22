@@ -26,6 +26,8 @@
 #include <Eigen/Core>
 #include <Eigen/StdVector>
 #include <Eigen/Dense>
+#include <queue>
+#include <stack>
 
 
 class Renderer {
@@ -43,6 +45,7 @@ public:
     void drag(float dx, float dy);
     void scale(float scaleFactor);
     void doubleTap();
+    void networkTilesFunction(JavaVM* gJvm, GetTileRequest* getTileRequest);
 
     float evaluateN() {
         return pow(2, currentMapZTile());
@@ -106,19 +109,7 @@ public:
         return yTile;
     }
 
-
-    void setupNoOpenGLMapState(float scaleFactor, AAssetManager *assetManager) {
-        loadAssets(assetManager);
-        cameraRootDistance = 3500;
-        fovy = 65;
-        updateMapZoomScaleFactor(scaleFactor);
-        updateCameraPosition();
-        _savedLastScaleStateMapZ = currentMapZTile();
-        renderTileGeometry.scaleZCordDrawHeapsDiff(evaluateScaleFactorFormula());
-        planetRadius = evaluateBasicPlanetRadius();
-
-        LOGI("Current tile extent %f", evaluateCurrentExtent());
-    }
+    void setupNoOpenGLMapState(float scaleFactor, AAssetManager *assetManager, JNIEnv *env);
 
     float evaluateBasicPlanetRadius() {
         return evaluateZeroZoomCameraDist() * 0.3f;
@@ -131,9 +122,10 @@ public:
     VisibleTileRenderMode visibleTileRenderMode = VisibleTileRenderMode::TILE;
 
     void drawPlanet();
+    void onStop();
     void loadAssets(AAssetManager *assetManager);
     void loadAndRenderCurrentVisibleTiles();
-    void loadAndRender(TileCords tileCords);
+    void loadAndRender(TileCords needToInsertCord, GetTileRequest* getTileRequest);
 
     void updateMapZoomScaleFactor(float scaleFactor) {
         scaleFactorZoom = scaleFactor;
@@ -150,13 +142,15 @@ public:
     void loadTextures(AAssetManager *assetManager);
 
 private:
+
+    short networkTilesThreads = 2;
     short mapZTileCordMax = 19;
     float mapZTileScalingRoot = 12;
     float scaleFactorZoom = 0.0f; // из MapView устанавливается
-    short maxLoadTileThreads = 4;
-    short loadTilesThreadsAmount = 0;
     float cameraCurrentDistance = 0;
 
+    std::stack<TileCords> networkTilesStack;
+    std::vector<std::thread*> networkTileThreads;
     float _lastEvaluatedScaleFloatScaleFactor;
     float _savedLastScaleStateMapZ;
 
@@ -287,6 +281,15 @@ private:
         glEnable(GL_STENCIL_TEST);
     }
 
+    bool isCurrentVisible(TileCords& tileCords) {
+        for (auto cv : currentVisibleTiles) {
+            if (tileCords.tileX == cv.tileX && tileCords.tileY == cv.tileY && tileCords.tileZ == cv.tileZ) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     void glViewPortDefaultSize() {
         glViewport(0, 0, screenW, screenH);
     }
@@ -308,7 +311,6 @@ private:
     Sphere sphere = Sphere();
     float planetRadius;
     double latitudeCameraAngleRadConstraint = M_PI / 2 - M_PI / 100;
-    std::vector<TileCords> toShowTilesQueue = {};
     float fovy;
     float cameraRootDistance;
     double cameraLatitudeRad = 0, cameraLongitudeRad = 0;
@@ -317,7 +319,7 @@ private:
     int renderMapTextureWidth = extent, renderMapTextureHeight = extent;
 
     Cache* cache;
-    TilesStorage tilesStorage = TilesStorage(cache);
+    TilesStorage tilesStorage = TilesStorage(cache, nullptr);
     static const short tilesForRenderMaxSize = 20;
     TileForRenderer tilesForRenderer[tilesForRenderMaxSize] = {};
 

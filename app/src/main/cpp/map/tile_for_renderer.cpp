@@ -6,10 +6,10 @@
 
 TileForRenderer::TileForRenderer(Tile *tile, int shiftX, int shiftY,
                                  int tileX, int tileY, int tileZ, float mapScaleFactor, int rPosX, int rPosY,
-                                 short xNorm, short yNorm)
+                                 short xNorm, short yNorm, TileCords tileCords)
     : tile(tile), shiftX(shiftX), shiftY(shiftY),
       tileX(tileX), tileY(tileY), tileZ(tileZ), mapScaleFactor(mapScaleFactor), rPosX(rPosX), rPosY(rPosY),
-      xNorm(xNorm), yNorm(yNorm) {}
+      xNorm(xNorm), yNorm(yNorm), tileCords(tileCords) {}
 
 TileForRenderer::TileForRenderer() {}
 

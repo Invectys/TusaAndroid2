@@ -14,4 +14,5 @@ public class NativeLibrary {
     public static native void drag(float dx, float dy);
     public static native void scale(float scaleFactor);
     public static native void doubleTap();
+    public static native void onStop();
 }

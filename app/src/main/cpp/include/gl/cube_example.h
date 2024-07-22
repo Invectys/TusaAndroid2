@@ -18,7 +18,7 @@ class CubeExample : public IOpenGl {
     void render() override;
     void onSurfaceChanged(int w, int h) override;
     void onSurfaceCreated(AAssetManager* assetManager) override;
-    void noOpenGlContextInit(AAssetManager* assetManager, float scaleFactor) override;
+    void noOpenGlContextInit(AAssetManager* assetManager, float scaleFactor, JNIEnv *env) override;
     void drag(float dx, float dy) override;
     void scale(float scaleFactor) override;
     void doubleTap() override;

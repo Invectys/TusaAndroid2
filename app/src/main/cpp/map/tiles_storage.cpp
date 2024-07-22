@@ -8,11 +8,11 @@
 
 bool USE_MEM_CACHE = true;
 
-Tile* TilesStorage::getTile(int zoom, int x, int y) {
+Tile* TilesStorage::getTile(int zoom, int x, int y, GetTileRequest* getTileRequest) {
     std::string key = Tile::makeKey(zoom, x, y);
     auto it = cacheTiles.find(key);
     if(it == cacheTiles.end() || !USE_MEM_CACHE) {
-        Tile* newTile = request->loadVectorTile(zoom, x, y);
+        Tile* newTile = getTileRequest->request(x, y, zoom);
         cacheTiles.insert({key, newTile});
         return newTile;
     }
@@ -20,8 +20,8 @@ Tile* TilesStorage::getTile(int zoom, int x, int y) {
     return it->second;
 }
 
-TilesStorage::TilesStorage(Cache* cache)
-    : cache(cache) { }
+TilesStorage::TilesStorage(Cache* cache, GetTileRequest* getTileRequest)
+    : cache(cache), request(getTileRequest) { }
 
 TilesStorage::~TilesStorage() {
     delete request;

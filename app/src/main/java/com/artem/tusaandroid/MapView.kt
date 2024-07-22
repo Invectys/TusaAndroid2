@@ -10,6 +10,7 @@ import android.view.GestureDetector.SimpleOnGestureListener
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.ScaleGestureDetector.SimpleOnScaleGestureListener
+import android.view.SurfaceHolder
 
 
 class MapView : GLSurfaceView {
@@ -44,6 +45,11 @@ class MapView : GLSurfaceView {
 
         scaleGestureDetector = ScaleGestureDetector(context, ScaleListener())
         gestureDetector = GestureDetector(context, GestureListener())
+    }
+
+    override fun surfaceDestroyed(holder: SurfaceHolder) {
+        super.surfaceDestroyed(holder)
+        NativeLibrary.onStop()
     }
 
     @SuppressLint("ClickableViewAccessibility")

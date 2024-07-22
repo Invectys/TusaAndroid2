@@ -7,7 +7,7 @@
 
 #include "../shader/shaders_bucket.h"
 #include "renderer/renderer.h"
-#include "network/request.h"
+#include "network/get_tile_request.h"
 #include "tiles_storage.h"
 #include "style/style.h"
 #include "mutex"
@@ -17,21 +17,22 @@ class Map : public IOpenGl{
 public:
     Map(Cache* cache);
 
+//    Map(const Map&) = delete;
+//    Map& operator=(const Map&) = delete;
+
     void render() override;
     void onSurfaceChanged(int w, int h) override;
     void onSurfaceCreated(AAssetManager* assetManager) override;
-    void noOpenGlContextInit(AAssetManager* assetManager, float scaleFactor) override;
+    void noOpenGlContextInit(AAssetManager* assetManager, float scaleFactor, JNIEnv *env) override;
     void drag(float dx, float dy) override;
     void scale(float scaleFactor) override;
     void doubleTap() override;
-
+    void onStop() override;
 private:
-
     float zoom = 0;
     Cache* cache;
     std::shared_ptr<ShadersBucket> shadersBucket = std::shared_ptr<ShadersBucket>(new ShadersBucket());
     Renderer renderer = Renderer(shadersBucket, cache);
-
 };
 
 

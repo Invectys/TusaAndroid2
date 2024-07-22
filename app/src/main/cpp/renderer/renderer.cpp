@@ -23,9 +23,11 @@ bool DEBUG_TILE = false;
 bool UPDATE_ON_DRAG = true;
 bool DEBUG = false;
 
+std::atomic<bool> networkTileThreadRunning;
 
-std::mutex evaluateTilesPositionsMutex;
 std::mutex regeneratePlanetGeometryMutex;
+std::mutex networkTileStackMutex;
+std::mutex evaluateNewTilePositionMutex;
 
 Renderer::Renderer(
         std::shared_ptr<ShadersBucket> shadersBucket,
@@ -39,8 +41,7 @@ Renderer::Renderer(
 }
 
 void Renderer::renderFrame() {
-
-    //evaluateTilesPositionsMutex.lock();
+    evaluateNewTilePositionMutex.lock();
     auto start = std::chrono::high_resolution_clock::now();
 
     std::shared_ptr<PlainShader> plainShader = shadersBucket->plainShader;
@@ -83,6 +84,7 @@ void Renderer::renderFrame() {
     glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
     glUseProgram(plainShader->program);
 
+    auto currentZ = currentMapZTile();
     auto vt = currentVisibleTiles;
     auto renderTileCoordinatesPtr = renderTileCoordinates.get();
     if(visibleTileRenderMode == VisibleTileRenderMode::TILE) {
@@ -96,10 +98,13 @@ void Renderer::renderFrame() {
 
                     short deltaX = visibleTile.rPosX;
                     short deltaY = visibleTile.rPosY;
+                    short deltaZ = visibleTile.tileZ - currentZ;
 
-                    short shift = extent;
+                    float scale = pow(2, deltaZ);
+                    short shift = extent * scale;
                     Eigen::Affine3f modelTranslation(Eigen::Translation3f(shift * deltaX, -1 * shift * deltaY, 0));
-                    Eigen::Matrix4f forTileMatrix = pvmTexture * modelTranslation.matrix();
+                    Eigen::Affine3f modelScale(Eigen::AlignedScaling3f(scale, scale, 0));
+                    Eigen::Matrix4f forTileMatrix = pvmTexture * modelScale.matrix() * modelTranslation.matrix();
                     glUniformMatrix4fv(plainShader->getMatrixLocation(), 1, GL_FALSE, forTileMatrix.data());
 
                     Tile* tile = visibleTile.tile;
@@ -145,6 +150,8 @@ void Renderer::renderFrame() {
                     if(geometryHeapIndex == Style::maxGeometryHeaps) {
                         CSSColorParser::Color colorOfStyle = CSSColorParser::parse("rgb(241, 255, 230)");
                         GLfloat red   = static_cast<GLfloat>(colorOfStyle.r) / 255;
+
+
                         GLfloat green = static_cast<GLfloat>(colorOfStyle.g) / 255;
                         GLfloat blue  = static_cast<GLfloat>(colorOfStyle.b) / 255;
                         GLfloat alpha = static_cast<GLfloat>(colorOfStyle.a);
@@ -184,8 +191,8 @@ void Renderer::renderFrame() {
 
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> duration = end - start;
-    //LOGI("render time: %f", duration.count());w
-    //evaluateTilesPositionsMutex.unlock();
+    //LOGI("render time: %f", duration.count());
+    evaluateNewTilePositionMutex.unlock();
 }
 
 
@@ -263,6 +270,12 @@ void Renderer::updateVisibleTiles() {
     }
     Eigen::Matrix4f pvm = evaluatePVM();
     auto corners = evaluateCorners(pvm);
+    LOGI("CORN tpx(%f) tpy(%f) brx(%f) bry(%f)",
+         RAD2DEG(corners.leftTopLongitudeRad),
+         RAD2DEG(corners.leftTopLatitudeRad),
+         RAD2DEG(corners.rightBottomLongitudeRad),
+         RAD2DEG(corners.rightBottomLatitudeRad));
+
     short z = currentMapZTile();
     float n = pow(2, z);
 
@@ -272,7 +285,7 @@ void Renderer::updateVisibleTiles() {
     float leftTop_yTile = 0;
     if (corners.hasLeftTop) {
         leftTop_x = (corners.leftTopLongitudeRad + M_PI) / (2 * M_PI);
-        leftTop_y = CommonUtils::latitudeRadToY(corners.leftTopLatitudeRad);
+        leftTop_y = CommonUtils::latitudeRadToY(-corners.leftTopLatitudeRad);
         leftTop_xTile = leftTop_x * n;
         leftTop_yTile = leftTop_y * n;
     }
@@ -283,7 +296,7 @@ void Renderer::updateVisibleTiles() {
     float rightBottom_yTile = n - 1;
     if (corners.hasRightBottom) {
         rightBottom_x = (CommonUtils::normalizeLongitudeRad(corners.rightBottomLongitudeRad) + M_PI) / (2 * M_PI);
-        rightBottom_y = CommonUtils::latitudeRadToY(corners.rightBottomLatitudeRad);
+        rightBottom_y = CommonUtils::latitudeRadToY(-corners.rightBottomLatitudeRad);
         rightBottom_xTile = rightBottom_x * n;
         rightBottom_yTile = rightBottom_y * n;
     }
@@ -322,7 +335,6 @@ void Renderer::updateVisibleTiles() {
     LOGI("[SHOW_PIPE] New visible tiles: %s", oss.str().c_str());
 
     currentVisibleTiles = std::move(newVisibleTiles);
-    toShowTilesQueue.clear();
     loadAndRenderCurrentVisibleTiles();
 }
 
@@ -371,104 +383,155 @@ void Renderer::doubleTap() {
     //DEBUG = !DEBUG;
 }
 
-void Renderer::loadAndRenderCurrentVisibleTiles() {
-    for(TileCords vcord : currentVisibleTiles) {
-        if(loadTilesThreadsAmount > maxLoadTileThreads) {
-            toShowTilesQueue.push_back(vcord);
-            continue;
-        }
+void Renderer::networkTilesFunction(JavaVM* gJvm, GetTileRequest* getTileRequest) {
+    JNIEnv* threadEnv;
+    gJvm->AttachCurrentThread(&threadEnv, NULL);
+    getTileRequest->setEnv(threadEnv);
 
-        std::thread([vcord, this]() {
-            loadAndRender(vcord);
-
-            while(toShowTilesQueue.size() > 0 && loadTilesThreadsAmount < maxLoadTileThreads) {
-                TileCords tileCords = toShowTilesQueue.back();
-                toShowTilesQueue.pop_back();
-
-                bool found = false;
-                for(TileCords cv : currentVisibleTiles) {
-                    found = cv.tileX == tileCords.tileX && cv.tileY == tileCords.tileY && cv.tileZ == tileCords.tileZ;
-                    if(found)
-                        break;
-                }
-
-                if(found) {
-                    LOGI("Load and render thread. Load freshest tile.");
-                    std::thread([tileCords, this]() {
-                        loadAndRender(tileCords);
-                    }).detach();
-                }
+    while (networkTileThreadRunning.load()) {
+        networkTileStackMutex.lock();
+        TileCords toShowTileCord;
+        bool showCord = false;
+        while (!networkTilesStack.empty()) {
+            auto lastAddedTileCords = networkTilesStack.top();
+            networkTilesStack.pop();
+            if (isCurrentVisible(lastAddedTileCords)) {
+                toShowTileCord = std::move(lastAddedTileCords);
+                showCord = true;
+                break;
             }
-        }).detach();
+        }
+        networkTileStackMutex.unlock();
+
+        if (showCord) {
+            loadAndRender(toShowTileCord, getTileRequest);
+        }
+    }
+
+    gJvm->DetachCurrentThread();
+}
+
+void Renderer::setupNoOpenGLMapState(float scaleFactor, AAssetManager *assetManager, JNIEnv *env) {
+    loadAssets(assetManager);
+    cameraRootDistance = 3500;
+    fovy = 65;
+    updateMapZoomScaleFactor(scaleFactor);
+    updateCameraPosition();
+    _savedLastScaleStateMapZ = currentMapZTile();
+    renderTileGeometry.scaleZCordDrawHeapsDiff(evaluateScaleFactorFormula());
+    planetRadius = evaluateBasicPlanetRadius();
+    JavaVM* gJvm = nullptr;
+    env->GetJavaVM(&gJvm);
+    GetTileRequest* getTileRequest = new GetTileRequest(cache, env);
+
+    // network_tile_thread
+    networkTileThreadRunning.store(true);
+    for(short i = 0; i < networkTilesThreads; i++) {
+        std::thread networkTileThread(std::bind(&Renderer::networkTilesFunction, this, gJvm, getTileRequest));
+        networkTileThread.detach();
+        networkTileThreads.push_back(&networkTileThread);
     }
 }
 
+void Renderer::loadAndRenderCurrentVisibleTiles() {
+    networkTileStackMutex.lock();
+    for(TileCords tile : currentVisibleTiles) {
+        networkTilesStack.push(tile);
+    }
+    networkTileStackMutex.unlock();
+}
 
-void Renderer::loadAndRender(TileCords rtc) {
-    loadTilesThreadsAmount++;
-    LOGI("Load and render thread started. Current threads amount: %d", loadTilesThreadsAmount);
 
+void Renderer::loadAndRender(TileCords needToInsertCord, GetTileRequest* getTileRequest) {
+    LOGI("Load and render thread started.");
     auto start = std::chrono::high_resolution_clock::now();
 
-    float mapScaleFactorForCurrentVisibleTilesZ = evaluateScaleFactorFormulaForZ(rtc.tileZ);
-    auto tileGeometry = tilesStorage.getTile(rtc.tileZ, rtc.tileX, rtc.tileY);
+//    bool allCvPassed = true;
+//    for (auto cv : currentVisibleTiles) {
+//        if (cv.is(needToInsertCord)) {
+//            cv.needToInsertPassed = true;
+//        }
+//        if (!cv.needToInsertPassed && allCvPassed) {
+//            allCvPassed = false;
+//        }
+//    }
+
+    float mapScaleFactorForCurrentVisibleTilesZ = evaluateScaleFactorFormulaForZ(needToInsertCord.tileZ);
+    auto tileGeometry = tilesStorage.getTile(needToInsertCord.tileZ, needToInsertCord.tileX, needToInsertCord.tileY, getTileRequest);
     // Этот тайл был загружен и его необходимо показать на карте
     auto needToInsertTile = TileForRenderer(
-                        tileGeometry, rtc.tileXShift, rtc.tileYShift,
-                            rtc.tileX, rtc.tileY, rtc.tileZ,
-                            mapScaleFactorForCurrentVisibleTilesZ,
-                            rtc.renderPosX, rtc.renderPosY,
-                            rtc.xNormalized, rtc.yNormalized
-                        );
+            tileGeometry, needToInsertCord.tileXShift, needToInsertCord.tileYShift,
+            needToInsertCord.tileX, needToInsertCord.tileY, needToInsertCord.tileZ,
+            mapScaleFactorForCurrentVisibleTilesZ,
+            needToInsertCord.renderPosX, needToInsertCord.renderPosY,
+            needToInsertCord.xNormalized, needToInsertCord.yNormalized,
+            needToInsertCord
+            );
 
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> duration = end - start;
-    LOGI("load tile time: %f, cords z:%d x:%d y:%d", duration.count(), rtc.tileZ, rtc.tileX, rtc.tileY);
+    LOGI("load tile time: %f, cords z:%d x:%d y:%d", duration.count(), needToInsertCord.tileZ, needToInsertCord.tileX, needToInsertCord.tileY);
+    evaluateNewTilePositionMutex.lock();
 
-    // Если больше нуля то тайл (needToInsertTile) выше в 3д пространстве
-    // Если меньше нуля то тайл ниже
-    //evaluateTilesPositionsMutex.lock();
-
-    if(needToInsertTile.tileZ != currentMapZTile()) {
-        loadTilesThreadsAmount--;
-        return;
-    }
-
-    // удалить все то что не того Z
-    for(short renderTileIndex = 0; renderTileIndex < tilesForRenderMaxSize; renderTileIndex++) {
-        auto& tileForR = tilesForRenderer[renderTileIndex];
-        if(tileForR.tileZ != currentMapZTile()) {
-            tilesForRenderer[renderTileIndex].clear();
-        }
-    }
-
-    // тайл уже добавлен
-    bool exist = false;
+    short currentMapZ = currentMapZTile();
+    // Пересчет zDelta
     for(short renderTileIndex = 0; renderTileIndex < tilesForRenderMaxSize; renderTileIndex++) {
         auto& tileForR = tilesForRenderer[renderTileIndex];
         if(tileForR.isEmpty())
             continue;
-        exist = tileForR.tileX == needToInsertTile.tileX && tileForR.tileY == needToInsertTile.tileY && tileForR.tileZ == needToInsertTile.tileZ;
-        if(exist)
+
+        // Если больше нуля то тайл (needToInsertTile) выше в 3д пространстве
+        // Если меньше нуля то тайл ниже
+        //tileForR.zDeltaFlag = currentMapZ - tileForR.tileZ;
+    }
+
+    short zDelta = currentMapZ - needToInsertTile.tileZ;
+    //needToInsertTile.zDeltaFlag = zDelta;
+
+//    // Вычисляем вообще неактуальные тайлы
+//    if (!allCvPassed) {
+//        // Тайл точно акутален если он текущий видимый
+//        // Тайл точно НЕ акутален если он перекрыт текущим видимым
+//        for (auto cv : currentVisibleTiles) {
+//            for (auto tileForRender : tilesForRenderer) {
+//                if (tileForRender.isEmpty())
+//                    continue; // тайл пустой и нету смысла в проверке
+//                bool isCurVisible = isCurrentVisible(tileForRender.tileCords);
+//                if (isCurVisible) {
+//                    continue; // значит актуальный если текущий видимый
+//                }
+//                if (cv.cover(tileForRender.tileCords))
+//                    tileForRender.clear(); // тайл перекрыт актуальным поэтому больше не нужен
+//            }
+//        }
+//    } else {
+//
+//    }
+
+
+    // Если все нужные тайлы загружены то сносим все остальное
+    for (auto tileForRender : tilesForRenderer) {
+        if (tileForRender.isEmpty())
+            continue; // тайл пустой и нету смысла в проверке
+        bool isCurVisible = isCurrentVisible(tileForRender.tileCords);
+        if (!isCurVisible)
+            tileForRender.clear(); // это не текущий видимый = сносим
+    }
+
+    // Вставить в свободный индекс
+    short insertedIndex = -1;
+    for(short renderTileIndex = 0; renderTileIndex < tilesForRenderMaxSize; renderTileIndex++) {
+        auto& tileForR = tilesForRenderer[renderTileIndex];
+        if(tileForR.isEmpty()) {
+            tilesForRenderer[renderTileIndex] = needToInsertTile;
+            insertedIndex = renderTileIndex;
             break;
-    }
-
-    if (!exist) {
-        short insertedIndex = -1;
-        for(short renderTileIndex = 0; renderTileIndex < tilesForRenderMaxSize; renderTileIndex++) {
-            auto& tileForR = tilesForRenderer[renderTileIndex];
-            if(tileForR.isEmpty() || tileForR.tileZ != currentMapZTile()) {
-                tilesForRenderer[renderTileIndex] = needToInsertTile;
-                insertedIndex = renderTileIndex;
-                break;
-            }
         }
-        LOGI("[SHOW_PIPE] loadAndRender() %s ins idx = %d", needToInsertTile.toString().c_str(), insertedIndex);
     }
+    LOGI("[SHOW_PIPE] loadAndRender() %s ins idx = %d", needToInsertTile.toString().c_str(), insertedIndex);
 
-    //evaluateTilesPositionsMutex.unlock();
-    loadTilesThreadsAmount--;
-    LOGI("Load and render thread finished. Current threads amount: %d", loadTilesThreadsAmount);
+    evaluateNewTilePositionMutex.unlock();
+    LOGI("Load and render thread finished.");
 }
 
 void Renderer::loadAssets(AAssetManager *assetManager) {
@@ -620,7 +683,7 @@ void Renderer::evaluateLatLonByIntersectionPlanes(
         longitudeRad = CommonUtils::normalizeLongitudeRad(longitudeRad);
 
         float hypotenuse = sqrt(pow(xi2, 2.0) + pow(zi2, 2.0));
-        latitudeRad = -atan2(yi2, hypotenuse);
+        latitudeRad = atan2(yi2, hypotenuse);
         has = true;
         return;
     }
@@ -641,7 +704,7 @@ void Renderer::updatePlanetGeometry() {
     }
 
     if (!DEBUG) {
-        sphere.generateSphereData5(16, 16,
+        sphere.generateSphereData5(22, 22,
                                    planetRadius,
                                    -cameraLatitudeRad,
                                    -cameraLongitudeRad,
@@ -650,6 +713,15 @@ void Renderer::updatePlanetGeometry() {
     }
 
     regeneratePlanetGeometryMutex.unlock();
+}
+
+void Renderer::onStop() {
+    networkTileThreadRunning.store(false);
+    for (std::thread* networkTileThread : networkTileThreads) {
+        if (networkTileThread->joinable()) {
+            networkTileThread->join();
+        }
+    }
 }
 
 

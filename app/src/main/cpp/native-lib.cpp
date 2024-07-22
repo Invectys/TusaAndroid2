@@ -26,8 +26,6 @@
 
 Cache *cache = new Cache();
 Map map = Map(cache);
-CubeExample cube = CubeExample();
-TriangleExample triangleExample = TriangleExample();
 IOpenGl& openGl = map;
 
 
@@ -56,8 +54,9 @@ Java_com_artem_tusaandroid_NativeLibrary_noOpenGlContextInit(JNIEnv *env, jclass
                                                              jobject assetManager,
                                                              jfloat scale_factor) {
     AAssetManager* assetManagerFromJava = AAssetManager_fromJava(env, assetManager);
-    openGl.noOpenGlContextInit(assetManagerFromJava, scale_factor);
+    openGl.noOpenGlContextInit(assetManagerFromJava, scale_factor, env);
 }
+
 extern "C"
 JNIEXPORT void JNICALL
 Java_com_artem_tusaandroid_NativeLibrary_setupCacheDirAbsolutePath(JNIEnv *env, jclass clazz,
@@ -78,7 +77,11 @@ Java_com_artem_tusaandroid_NativeLibrary_scale(JNIEnv *env, jclass clazz, jfloat
 extern "C"
 JNIEXPORT void JNICALL
 Java_com_artem_tusaandroid_NativeLibrary_doubleTap(JNIEnv *env, jclass clazz) {
-    openGl.doubleTap();
+    openGl.onStop();
 }
 
-
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_artem_tusaandroid_NativeLibrary_onStop(JNIEnv *env, jclass clazz) {
+    openGl.onStop();
+}
