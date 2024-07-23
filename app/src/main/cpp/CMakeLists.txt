@@ -42,6 +42,7 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
         renderer/tile_cords.cpp
         renderer/center_borders_cords.cpp
         renderer/corners_cords.cpp
+        renderer/render_tile_hash.cpp
 
         util/frustrums.cpp
         util/matrices.cpp

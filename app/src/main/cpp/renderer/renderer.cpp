@@ -11,6 +11,7 @@
 #include "util/android_log.h"
 #include "shader/planet_shader.h"
 #include "util/eigen_gl.h"
+#include "renderer/render_tile_hash.h"
 #include <cmath>
 #include <iostream>
 #include <thread>
@@ -61,84 +62,67 @@ void Renderer::renderFrame() {
         glViewport(0, 0, renderMapTextureWidth, renderMapTextureHeight);
     }
 
-    glStencilMask(0xFF);
     glClearColor((float)242 / 255, (float)248 / 255, (float)230 / 255, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-    glStencilFunc(GL_GREATER, 1, 0xFF);
-    glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
+    glStencilOp(GL_KEEP, GL_KEEP, GL_INCR);
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_STENCIL_TEST);
     glUseProgram(plainShader->program);
+
 
     auto currentZ = currentMapZTile();
     auto vt = currentVisibleTiles;
     auto renderTileCoordinatesPtr = renderTileCoordinates.get();
     if(visibleTileRenderMode == VisibleTileRenderMode::TILE) {
-        short reserved = 1; // для бэкграунда
-        // рендринг тайлов по слоям
-        // то есть сначала рендриться один слой всех тайлов,
-        // потом следующий слой всех тайлов
-        // это помогает избежать коллизий между тайлами
-        for(short geometryHeapIndex = 0; geometryHeapIndex < Style::maxGeometryHeaps + reserved; ++geometryHeapIndex) {
+        std::map<short, RenderTileHash> renderTileHash;
+        for(short geometryHeapIndex = Style::maxGeometryHeaps; geometryHeapIndex >= 0; --geometryHeapIndex) {
+            // Рендринг тайлов
             for(short renderTileIndex = 0; renderTileIndex < tilesForRenderMaxSize; renderTileIndex++) {
                 TileForRenderer visibleTile = tilesForRenderer[renderTileIndex];
                 if(visibleTile.isEmpty())
                     continue;
 
-                short deltaX = visibleTile.rPosX;
-                short deltaY = visibleTile.rPosY;
-                short deltaZ = visibleTile.tileZ - currentZ;
+//                int n = pow(2, topLeftVisibleCord.tileZ);
+//                double tileP = 1.0 / n;
+//
+//                double xStartBorder = topLeftVisibleCord.tileX * tileP;
+//                double xEndBorder = tileP * renderMapXTilesCount + xStartBorder;
+//                double yStartBorder = topLeftVisibleCord.tileY * tileP;
+//                double yEndBorder = tileP * renderMapYTilesCount + yStartBorder;
 
-                float scale = pow(2, deltaZ);
-                short shift = extent * scale;
-                Eigen::Affine3f modelTranslation(Eigen::Translation3f(shift * deltaX, -1 * shift * deltaY, 0));
-                Eigen::Affine3f modelScale(Eigen::AlignedScaling3f(scale, scale, 0));
-                Eigen::Matrix4f forTileMatrix = pvmTexture * modelScale.matrix() * modelTranslation.matrix();
-                glUniformMatrix4fv(plainShader->getMatrixLocation(), 1, GL_FALSE, forTileMatrix.data());
+                Eigen::Matrix4f forTileMatrix;
+                if (renderTileHash.find(renderTileIndex) != renderTileHash.end()) {
+                    short deltaX = visibleTile.rPosX;
+                    short deltaY = visibleTile.rPosY;
+                    short deltaZ = visibleTile.tileZ - currentZ;
 
-                Tile* tile = visibleTile.tile;
-                // Рисуем основную карту
-                if(geometryHeapIndex < Style::maxGeometryHeaps) {
-                    Geometry<float, unsigned int>& polygonsGeometry = tile->resultPolygons[geometryHeapIndex];
-                    Geometry<float, unsigned int>& linesGeometry = tile->resultLines[geometryHeapIndex];
-                    if(polygonsGeometry.isEmpty() && linesGeometry.isEmpty())
-                        continue;
+                    float scale = pow(2, deltaZ);
+                    short shift = extent * scale;
+                    Eigen::Affine3f modelTranslation(Eigen::Translation3f(shift * deltaX, -1 * shift * deltaY, 0));
+                    Eigen::Affine3f modelScale(Eigen::AlignedScaling3f(scale, scale, 0));
+                    forTileMatrix = pvmTexture * modelScale.matrix() * modelTranslation.matrix();
 
-                    float lineWidth = tile->style.getLineWidthOfHeap(geometryHeapIndex);
-                    glLineWidth(lineWidth);
+//                    float deltaTileX = 0;
+//                    if (topLeftVisibleCord.hasLatitudeAndLongitudeRad) {
+//                        float scaleTilesDelta = topLeftVisibleCord.tileZ - visibleTile.tileZ;
+//
+//                        float startOfVisibleTileX = (float) visibleTile.tileX / pow(2, visibleTile.tileZ);
+//                        float tileXCompDelta = startOfVisibleTileX - topLeftVisibleCord.xComponent;
+//                        deltaTileX = tileXCompDelta * extent * pow(2, visibleTile.tileZ);
+//                    }
 
-                    CSSColorParser::Color colorOfStyle = tile->style.getColorOfGeometryHeap(geometryHeapIndex);
-                    GLfloat red   = static_cast<GLfloat>(colorOfStyle.r) / 255;
-                    GLfloat green = static_cast<GLfloat>(colorOfStyle.g) / 255;
-                    GLfloat blue  = static_cast<GLfloat>(colorOfStyle.b) / 255;
-                    GLfloat alpha = static_cast<GLfloat>(colorOfStyle.a);
-                    const GLfloat color[] = { red, green, blue, alpha};
-                    glUniform4fv(plainShader->getColorLocation(), 1, color);
-
-
-                    if(!polygonsGeometry.isEmpty()) {
-                        glVertexAttribPointer(plainShader->getPosLocation(), 2, GL_FLOAT,
-                                              GL_FALSE, 0, polygonsGeometry.points
-                        );
-                        glEnableVertexAttribArray(plainShader->getPosLocation());
-                        glDrawElements(GL_TRIANGLES, polygonsGeometry.indicesCount, GL_UNSIGNED_INT, polygonsGeometry.indices);
-                    }
-
-                    if(!linesGeometry.isEmpty()) {
-                        glVertexAttribPointer(plainShader->getPosLocation(), 2, GL_FLOAT,
-                                              GL_FALSE, 0, linesGeometry.points
-                        );
-                        glEnableVertexAttribArray(plainShader->getPosLocation());
-                        glDrawElements(GL_LINES, linesGeometry.indicesCount, GL_UNSIGNED_INT, linesGeometry.indices);
-                    }
-
-                    continue;
+                    renderTileHash[renderTileIndex] = RenderTileHash { forTileMatrix };
+                } else {
+                    forTileMatrix = renderTileHash[renderTileIndex].forTileMatrix;
                 }
+
+                glUniformMatrix4fv(plainShader->getMatrixLocation(), 1, GL_FALSE, forTileMatrix.data());
+                Tile* tile = visibleTile.tile;
 
                 // рисуем бекграунд
                 if(geometryHeapIndex == Style::maxGeometryHeaps) {
                     CSSColorParser::Color colorOfStyle = CSSColorParser::parse("rgb(241, 255, 230)");
                     GLfloat red   = static_cast<GLfloat>(colorOfStyle.r) / 255;
-
-
                     GLfloat green = static_cast<GLfloat>(colorOfStyle.g) / 255;
                     GLfloat blue  = static_cast<GLfloat>(colorOfStyle.b) / 255;
                     GLfloat alpha = static_cast<GLfloat>(colorOfStyle.a);
@@ -159,18 +143,51 @@ void Renderer::renderFrame() {
                     );
                     glEnableVertexAttribArray(plainShader->getPosLocation());
                     glDrawArrays(GL_TRIANGLES, 0, 6);
+                    continue;
+                }
+
+                // Рисуем основную карту
+                if(geometryHeapIndex < Style::maxGeometryHeaps) {
+                    Geometry<float, unsigned int>& polygonsGeometry = tile->resultPolygons[geometryHeapIndex];
+                    Geometry<float, unsigned int>& linesGeometry = tile->resultLines[geometryHeapIndex];
+                    if(polygonsGeometry.isEmpty() && linesGeometry.isEmpty())
+                        continue;
+
+                    float lineWidth = tile->style.getLineWidthOfHeap(geometryHeapIndex);
+                    glLineWidth(lineWidth);
+
+                    CSSColorParser::Color colorOfStyle = tile->style.getColorOfGeometryHeap(geometryHeapIndex);
+                    GLfloat red   = static_cast<GLfloat>(colorOfStyle.r) / 255;
+                    GLfloat green = static_cast<GLfloat>(colorOfStyle.g) / 255;
+                    GLfloat blue  = static_cast<GLfloat>(colorOfStyle.b) / 255;
+                    GLfloat alpha = static_cast<GLfloat>(colorOfStyle.a);
+                    const GLfloat color[] = { red, green, blue, alpha};
+                    glUniform4fv(plainShader->getColorLocation(), 1, color);
+
+
+                    if (!polygonsGeometry.isEmpty()) {
+                        glVertexAttribPointer(plainShader->getPosLocation(), 2, GL_FLOAT,
+                                              GL_FALSE, 0, polygonsGeometry.points
+                        );
+                        glEnableVertexAttribArray(plainShader->getPosLocation());
+                        glDrawElements(GL_TRIANGLES, polygonsGeometry.indicesCount, GL_UNSIGNED_INT, polygonsGeometry.indices);
+                    }
+
+                    if (!linesGeometry.isEmpty()) {
+                        glVertexAttribPointer(plainShader->getPosLocation(), 2, GL_FLOAT,
+                                              GL_FALSE, 0, linesGeometry.points
+                        );
+                        glEnableVertexAttribArray(plainShader->getPosLocation());
+                        glDrawElements(GL_LINES, linesGeometry.indicesCount, GL_UNSIGNED_INT, linesGeometry.indices);
+                    }
+
+                    continue;
                 }
             }
         }
     }
 
     if (!RENDER_TILE_PALLET_TEST) {
-        glViewPortDefaultSize();
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
-        glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-        glStencilMask(0x0);
-
         drawPlanet();
     }
 
@@ -185,6 +202,14 @@ void Renderer::renderFrame() {
 void Renderer::drawPlanet() {
     // 1_drawPlanet
     regeneratePlanetGeometryMutex.lock();
+    glViewPortDefaultSize();
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+    glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+    glStencilMask(0X00);
+    glDisable(GL_STENCIL_TEST);
+    glEnable(GL_DEPTH_TEST);
+
     std::shared_ptr<PlanetShader> planetShader = shadersBucket->planetShader;
     std::shared_ptr<PlainShader> plainShader = shadersBucket->plainShader;
     glUseProgram(planetShader->program);
@@ -249,6 +274,7 @@ void Renderer::onSurfaceChanged(int w, int h) {
 
 void Renderer::updateVisibleTiles() {
     // 1_updateVisibleTiles
+    //evaluateNewTilePositionMutex.lock();
 
     if (DEBUG) {
         return;
@@ -321,6 +347,8 @@ void Renderer::updateVisibleTiles() {
 
     currentVisibleTiles = std::move(newVisibleTiles);
     loadAndRenderCurrentVisibleTiles();
+
+    //evaluateNewTilePositionMutex.unlock();
 }
 
 
@@ -365,7 +393,7 @@ void Renderer::scale(float factor) {
 
 void Renderer::doubleTap() {
     RENDER_TILE_PALLET_TEST = !RENDER_TILE_PALLET_TEST;
-    DEBUG = !DEBUG;
+    //DEBUG = !DEBUG;
 }
 
 void Renderer::networkTilesFunction(JavaVM* gJvm, GetTileRequest* getTileRequest) {
@@ -431,15 +459,15 @@ void Renderer::loadAndRender(TileCords needToInsertCord, GetTileRequest* getTile
     LOGI("Load and render thread started.");
     auto start = std::chrono::high_resolution_clock::now();
 
-//    bool allCvPassed = true;
-//    for (auto cv : currentVisibleTiles) {
-//        if (cv.is(needToInsertCord)) {
-//            cv.needToInsertPassed = true;
-//        }
-//        if (!cv.needToInsertPassed && allCvPassed) {
-//            allCvPassed = false;
-//        }
-//    }
+    bool allCvPassed = true;
+    for (auto& cv : currentVisibleTiles) {
+        if (cv.is(needToInsertCord)) {
+            cv.needToInsertPassed = true;
+        }
+        if (!cv.needToInsertPassed && allCvPassed) {
+            allCvPassed = false;
+        }
+    }
 
     float mapScaleFactorForCurrentVisibleTilesZ = evaluateScaleFactorFormulaForZ(needToInsertCord.tileZ);
     auto tileGeometry = tilesStorage.getTile(needToInsertCord.tileZ, needToInsertCord.tileX, needToInsertCord.tileY, getTileRequest);
@@ -460,15 +488,15 @@ void Renderer::loadAndRender(TileCords needToInsertCord, GetTileRequest* getTile
 
     short currentMapZ = currentMapZTile();
     // Пересчет zDelta
-    for(short renderTileIndex = 0; renderTileIndex < tilesForRenderMaxSize; renderTileIndex++) {
-        auto& tileForR = tilesForRenderer[renderTileIndex];
-        if(tileForR.isEmpty())
-            continue;
-
-        // Если больше нуля то тайл (needToInsertTile) выше в 3д пространстве
-        // Если меньше нуля то тайл ниже
-        //tileForR.zDeltaFlag = currentMapZ - tileForR.tileZ;
-    }
+//    for(short renderTileIndex = 0; renderTileIndex < tilesForRenderMaxSize; renderTileIndex++) {
+//        auto& tileForR = tilesForRenderer[renderTileIndex];
+//        if(tileForR.isEmpty())
+//            continue;
+//
+//        // Если больше нуля то тайл (needToInsertTile) выше в 3д пространстве
+//        // Если меньше нуля то тайл ниже
+//        //tileForR.zDeltaFlag = currentMapZ - tileForR.tileZ;
+//    }
 
     short zDelta = currentMapZ - needToInsertTile.tileZ;
     //needToInsertTile.zDeltaFlag = zDelta;
@@ -490,30 +518,30 @@ void Renderer::loadAndRender(TileCords needToInsertCord, GetTileRequest* getTile
 //            }
 //        }
 //    } else {
-//
+        // Если все нужные тайлы загружены то сносим все остальное
+        for (auto& tileForRender : tilesForRenderer) {
+            if (tileForRender.isEmpty())
+                continue; // тайл пустой и нету смысла в проверке
+            bool isCurVisible = isCurrentVisible(tileForRender.tileCords);
+            if (!isCurVisible)
+                tileForRender.clear(); // это не текущий видимый = сносим
+        }
 //    }
 
-
-    // Если все нужные тайлы загружены то сносим все остальное
-    for (auto& tileForRender : tilesForRenderer) {
-        if (tileForRender.isEmpty())
-            continue; // тайл пустой и нету смысла в проверке
-        bool isCurVisible = isCurrentVisible(tileForRender.tileCords);
-        if (!isCurVisible)
-            tileForRender.clear(); // это не текущий видимый = сносим
-    }
-
-    // Вставить в свободный индекс
-    short insertedIndex = -1;
-    for(short renderTileIndex = 0; renderTileIndex < tilesForRenderMaxSize; renderTileIndex++) {
-        auto& tileForR = tilesForRenderer[renderTileIndex];
-        if(tileForR.isEmpty()) {
-            tilesForRenderer[renderTileIndex] = needToInsertTile;
-            insertedIndex = renderTileIndex;
-            break;
+    //if(tilesForRenderer[0].isEmpty()) {
+        // Вставить в свободный индекс
+        short insertedIndex = -1;
+        for(short renderTileIndex = 0; renderTileIndex < tilesForRenderMaxSize; renderTileIndex++) {
+            auto& tileForR = tilesForRenderer[renderTileIndex];
+            if(tileForR.isEmpty()) {
+                tilesForRenderer[renderTileIndex] = needToInsertTile;
+                insertedIndex = renderTileIndex;
+                break;
+            }
         }
-    }
-    LOGI("[SHOW_PIPE] loadAndRender() %s ins idx = %d", needToInsertTile.toString().c_str(), insertedIndex);
+    //}
+
+    //LOGI("[SHOW_PIPE] loadAndRender() %s ins idx = %d", needToInsertTile.toString().c_str(), insertedIndex);
 
     evaluateNewTilePositionMutex.unlock();
     LOGI("Load and render thread finished.");
