@@ -41,6 +41,8 @@ Renderer::Renderer(
     renderTileCoordinates = std::shared_ptr<RenderTileCoordinates>(new RenderTileCoordinates(shadersBucket, symbols));
 }
 
+float d = 0;
+
 void Renderer::renderFrame() {
     evaluateNewTilePositionMutex.lock();
     auto start = std::chrono::high_resolution_clock::now();
@@ -92,24 +94,27 @@ void Renderer::renderFrame() {
 
                 Eigen::Matrix4f forTileMatrix;
                 if (renderTileHash.find(renderTileIndex) != renderTileHash.end()) {
-                    short deltaX = visibleTile.rPosX;
-                    short deltaY = visibleTile.rPosY;
-                    short deltaZ = visibleTile.tileZ - currentZ;
+                    short deltaRX = visibleTile.rPosX;
+                    short deltaRY = visibleTile.rPosY;
+                    short deltaTileZ = topLeftVisibleCord.tileZ - visibleTile.tileZ;
 
-                    float scale = pow(2, deltaZ);
-                    short shift = extent * scale;
-                    Eigen::Affine3f modelTranslation(Eigen::Translation3f(shift * deltaX, -1 * shift * deltaY, 0));
-                    Eigen::Affine3f modelScale(Eigen::AlignedScaling3f(scale, scale, 0));
-                    forTileMatrix = pvmTexture * modelScale.matrix() * modelTranslation.matrix();
+                    float scaleVisual2topLeft = pow(2, deltaTileZ);
+                    float sizeOfVisualTile = extent * scaleVisual2topLeft;
 
-//                    float deltaTileX = 0;
-//                    if (topLeftVisibleCord.hasLatitudeAndLongitudeRad) {
-//                        float scaleTilesDelta = topLeftVisibleCord.tileZ - visibleTile.tileZ;
-//
-//                        float startOfVisibleTileX = (float) visibleTile.tileX / pow(2, visibleTile.tileZ);
-//                        float tileXCompDelta = startOfVisibleTileX - topLeftVisibleCord.xComponent;
-//                        deltaTileX = tileXCompDelta * extent * pow(2, visibleTile.tileZ);
-//                    }
+                    float deltaVisualX = 0;
+                    float deltaVisualY = 0;
+
+                    if (topLeftVisibleCord.hasLatitudeAndLongitudeRad) {
+                        float sizeOfOneCord = sizeOfVisualTile / scaleVisual2topLeft;
+
+                        deltaVisualX = sizeOfOneCord * topLeftVisibleCord.tileX;
+                        deltaVisualY = sizeOfOneCord * topLeftVisibleCord.tileY;
+                    }
+
+
+                    Eigen::Affine3f modelTranslation(Eigen::Translation3f(sizeOfVisualTile * deltaRX - deltaVisualX, -1 * sizeOfVisualTile * deltaRY + deltaVisualY, 0));
+                    Eigen::Affine3f scaleMatrix(Eigen::Scaling(scaleVisual2topLeft, scaleVisual2topLeft, 0.0f));
+                    forTileMatrix = pvmTexture * modelTranslation.matrix() * scaleMatrix.matrix();
 
                     renderTileHash[renderTileIndex] = RenderTileHash { forTileMatrix };
                 } else {
@@ -392,8 +397,10 @@ void Renderer::scale(float factor) {
 }
 
 void Renderer::doubleTap() {
+    //RENDER_TILE_PALLET_TEST = true;
     RENDER_TILE_PALLET_TEST = !RENDER_TILE_PALLET_TEST;
     //DEBUG = !DEBUG;
+    //d += extent;
 }
 
 void Renderer::networkTilesFunction(JavaVM* gJvm, GetTileRequest* getTileRequest) {
@@ -519,16 +526,16 @@ void Renderer::loadAndRender(TileCords needToInsertCord, GetTileRequest* getTile
 //        }
 //    } else {
         // Если все нужные тайлы загружены то сносим все остальное
-        for (auto& tileForRender : tilesForRenderer) {
-            if (tileForRender.isEmpty())
-                continue; // тайл пустой и нету смысла в проверке
-            bool isCurVisible = isCurrentVisible(tileForRender.tileCords);
-            if (!isCurVisible)
-                tileForRender.clear(); // это не текущий видимый = сносим
-        }
+//        for (auto& tileForRender : tilesForRenderer) {
+//            if (tileForRender.isEmpty())
+//                continue; // тайл пустой и нету смысла в проверке
+//            bool isCurVisible = isCurrentVisible(tileForRender.tileCords);
+//            if (!isCurVisible)
+//                tileForRender.clear(); // это не текущий видимый = сносим
+//        }
 //    }
 
-    //if(tilesForRenderer[0].isEmpty()) {
+    if(tilesForRenderer[0].isEmpty()) {
         // Вставить в свободный индекс
         short insertedIndex = -1;
         for(short renderTileIndex = 0; renderTileIndex < tilesForRenderMaxSize; renderTileIndex++) {
@@ -539,7 +546,7 @@ void Renderer::loadAndRender(TileCords needToInsertCord, GetTileRequest* getTile
                 break;
             }
         }
-    //}
+    }
 
     //LOGI("[SHOW_PIPE] loadAndRender() %s ins idx = %d", needToInsertTile.toString().c_str(), insertedIndex);
 
